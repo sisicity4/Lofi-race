@@ -148,6 +148,7 @@ export class RaceManager {
         this.options.eventBus.emit('race:countdownTick', { label: countdownResult.changedLabel });
       }
       if (countdownResult.startRaceNow) {
+        this.countdown.stop();
         this.phase = 'racing';
         this.setMessage('GO!', 900);
         this.options.eventBus.emit('race:start', { atMs: this.elapsedMs });

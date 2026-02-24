@@ -11,7 +11,7 @@ import { CameraRig } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { SceneBuilder } from '../render/SceneBuilder';
 import { TrackLoader } from '../track/TrackLoader';
-import type { GraphicsQuality, InputState, RaceSnapshot, SettingsData } from '../types/game';
+import type { GraphicsQuality, InputState, RaceSnapshot, SettingsData, TrackDefinition } from '../types/game';
 import { HudView } from '../ui/HudView';
 import { MenuView } from '../ui/MenuView';
 import { ResultView } from '../ui/ResultView';
@@ -49,7 +49,9 @@ export class App {
   private cameraRig: CameraRig | null = null;
   private loop: GameLoop | null = null;
   private raceManager: RaceManager | null = null;
+  private track: TrackDefinition | null = null;
   private carMeshes = new Map<string, THREE.Group>();
+  private nextCheckpointBeacon: THREE.Group | null = null;
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
@@ -126,12 +128,14 @@ export class App {
 
     try {
       const track = await this.trackLoader.loadDefaultTrack();
+      this.track = track;
       this.renderer = new Renderer(this.canvas);
       this.renderer.applyQuality(this.settings.graphicsQuality);
       this.renderer.resize();
       this.cameraRig = new CameraRig(this.renderer.camera);
 
       this.sceneBuilder.buildScene(this.renderer.scene, track);
+      this.createOrAttachNextCheckpointBeacon();
 
       this.raceManager = new RaceManager({
         track,
@@ -218,6 +222,7 @@ export class App {
     });
 
     this.eventBus.on('ui:pauseToggled', ({ paused }) => {
+      this.audio.setPaused(paused);
       this.hudView.setPaused(paused);
     });
 
@@ -246,6 +251,7 @@ export class App {
     this.menuView.setVisible(false);
     this.hudView.setVisible(true);
     this.hudView.setPaused(false);
+    this.audio.setPaused(false);
     this.input.clearAll();
     this.lastFeedbackKey = '';
     this.portraitPauseApplied = false;
@@ -263,6 +269,7 @@ export class App {
   private returnToTitle(): void {
     if (!this.raceManager) return;
     this.raceManager.returnToMenu();
+    this.audio.setPaused(false);
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
@@ -309,6 +316,7 @@ export class App {
     if (!this.renderer || !this.raceManager || !this.cameraRig) return;
 
     this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec);
+    this.updateNextCheckpointBeacon(frameDtSec);
     this.renderer.render();
 
     if (this.lastSnapshot) {
@@ -331,6 +339,91 @@ export class App {
       const mesh = this.sceneBuilder.createCarMesh(vehicle.colorHex, vehicle.isPlayer);
       this.renderer.scene.add(mesh);
       this.carMeshes.set(vehicle.id, mesh);
+    }
+  }
+
+  private createOrAttachNextCheckpointBeacon(): void {
+    if (!this.renderer) return;
+    if (this.nextCheckpointBeacon) {
+      this.renderer.scene.remove(this.nextCheckpointBeacon);
+    }
+
+    const root = new THREE.Group();
+    root.name = 'next-checkpoint-beacon';
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(3.4, 0.16, 8, 28),
+      new THREE.MeshStandardMaterial({ color: 0x39e6d8, emissive: 0x082a2a, flatShading: true, roughness: 0.65 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.3;
+    root.add(ring);
+
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.16, 5.2, 8),
+      new THREE.MeshBasicMaterial({ color: 0x7dfbe4, transparent: true, opacity: 0.32 }),
+    );
+    shaft.position.y = 2.75;
+    root.add(shaft);
+
+    const head = new THREE.Mesh(
+      new THREE.ConeGeometry(0.55, 1.1, 5),
+      new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x3a2405, flatShading: true, roughness: 0.6 }),
+    );
+    head.position.y = 5.9;
+    root.add(head);
+
+    const cap = new THREE.Mesh(
+      new THREE.TorusGeometry(0.95, 0.1, 6, 20),
+      new THREE.MeshStandardMaterial({ color: 0xfff3cb, flatShading: true, roughness: 0.75 }),
+    );
+    cap.rotation.x = Math.PI / 2;
+    cap.position.y = 5.25;
+    root.add(cap);
+
+    (root.userData as { ring?: THREE.Mesh; head?: THREE.Mesh }).ring = ring;
+    (root.userData as { ring?: THREE.Mesh; head?: THREE.Mesh }).head = head;
+    root.visible = false;
+
+    this.renderer.scene.add(root);
+    this.nextCheckpointBeacon = root;
+  }
+
+  private updateNextCheckpointBeacon(frameDtSec: number): void {
+    if (!this.nextCheckpointBeacon || !this.track || !this.raceManager || !this.lastSnapshot) return;
+    const cps = this.track.checkpoints;
+    if (cps.length === 0) {
+      this.nextCheckpointBeacon.visible = false;
+      return;
+    }
+
+    const player = this.lastSnapshot.vehicles.find((v) => v.isPlayer);
+    if (!player) {
+      this.nextCheckpointBeacon.visible = false;
+      return;
+    }
+
+    const phase = this.lastSnapshot.race.phase;
+    const showBeacon = phase === 'countdown' || phase === 'racing' || phase === 'paused';
+    this.nextCheckpointBeacon.visible = showBeacon;
+    if (!showBeacon) return;
+
+    const nextIndex = player.finished ? 0 : (player.checkpointIndex + 1) % cps.length;
+    const cp = cps[nextIndex];
+    const t = performance.now() * 0.001;
+    const pulse = 1 + Math.sin(t * 5.2) * 0.08;
+    this.nextCheckpointBeacon.position.set(cp.x, 0, cp.z);
+    this.nextCheckpointBeacon.rotation.y += frameDtSec * 1.8;
+    this.nextCheckpointBeacon.scale.set(pulse, 1, pulse);
+
+    const bob = Math.sin(t * 4.3) * 0.22;
+    const head = (this.nextCheckpointBeacon.userData as { head?: THREE.Mesh }).head;
+    const ring = (this.nextCheckpointBeacon.userData as { ring?: THREE.Mesh }).ring;
+    if (head) {
+      head.position.y = 5.9 + bob;
+    }
+    if (ring) {
+      ring.position.y = 0.3 + Math.sin(t * 3.1) * 0.03;
     }
   }
 

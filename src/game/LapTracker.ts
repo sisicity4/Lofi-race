@@ -1,5 +1,8 @@
 import type { Checkpoint, TrackDefinition } from '../types/game';
 
+const CHECKPOINT_RADIUS_MULTIPLIER = 1.4;
+const CHECKPOINT_RADIUS_BONUS = 0.8;
+
 interface LapTrackerState {
   nextCheckpointIndex: number;
   insideCheckpoint: boolean[];
@@ -19,10 +22,15 @@ export interface LapUpdateResult {
 
 export class LapTracker {
   private readonly checkpoints: Checkpoint[];
+  private readonly effectiveCheckpointRadiusSq: number[];
   private readonly states = new Map<string, LapTrackerState>();
 
   constructor(track: TrackDefinition, private readonly totalLaps: number) {
     this.checkpoints = track.checkpoints;
+    this.effectiveCheckpointRadiusSq = track.checkpoints.map((cp) => {
+      const effectiveRadius = cp.radius * CHECKPOINT_RADIUS_MULTIPLIER + CHECKPOINT_RADIUS_BONUS;
+      return effectiveRadius * effectiveRadius;
+    });
   }
 
   registerVehicle(vehicleId: string, elapsedMs = 0): void {
@@ -58,7 +66,7 @@ export class LapTracker {
 
     for (let i = 0; i < this.checkpoints.length; i += 1) {
       const cp = this.checkpoints[i];
-      const inside = (x - cp.x) * (x - cp.x) + (z - cp.z) * (z - cp.z) <= cp.radius * cp.radius;
+      const inside = (x - cp.x) * (x - cp.x) + (z - cp.z) * (z - cp.z) <= this.effectiveCheckpointRadiusSq[i];
       const wasInside = state.insideCheckpoint[i];
       state.insideCheckpoint[i] = inside;
 

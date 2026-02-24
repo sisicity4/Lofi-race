@@ -14,6 +14,7 @@ export class AudioManager {
   private engineOsc: OscillatorNode | null = null;
   private skidNoiseSource: AudioBufferSourceNode | null = null;
   private muted = false;
+  private paused = false;
   private masterVolume = 0.6;
   private initialized = false;
 
@@ -41,6 +42,17 @@ export class AudioManager {
     this.updateMasterGain();
   }
 
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    this.updateMasterGain();
+    if (!this.ctx || !this.engineGain || !this.skidGain) return;
+    const now = this.ctx.currentTime;
+    if (paused) {
+      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
+      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+    }
+  }
+
   isMuted(): boolean {
     return this.muted;
   }
@@ -57,11 +69,16 @@ export class AudioManager {
   updateDrivingAudio(speed: number, slip: number, active: boolean): void {
     if (!this.ctx || !this.engineOsc || !this.engineGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
+    if (!active || this.paused) {
+      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
+      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+      return;
+    }
     const speedNorm = clamp(Math.abs(speed) / 50, 0, 1);
     const engineFreq = 72 + speedNorm * 130 + Math.max(0, speed) * 1.4;
     this.engineOsc.frequency.setTargetAtTime(engineFreq, now, 0.03);
-    this.engineGain.gain.setTargetAtTime(active ? 0.05 + speedNorm * 0.14 : 0.0001, now, 0.04);
-    this.skidGain.gain.setTargetAtTime(active ? clamp((slip - 0.1) * 0.18, 0, 0.09) : 0.0001, now, 0.04);
+    this.engineGain.gain.setTargetAtTime(0.05 + speedNorm * 0.14, now, 0.04);
+    this.skidGain.gain.setTargetAtTime(clamp((slip - 0.1) * 0.18, 0, 0.09), now, 0.04);
   }
 
   playCountdown(label: string): void {
@@ -186,7 +203,7 @@ export class AudioManager {
 
   private updateMasterGain(): void {
     if (!this.ctx || !this.masterGain) return;
-    const target = this.muted ? 0 : this.masterVolume;
+    const target = this.muted || this.paused ? 0 : this.masterVolume;
     this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.03);
   }
 
