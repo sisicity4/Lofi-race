@@ -1,0 +1,50 @@
+{
+  "id": "coastal-gp-01",
+  "theme": "coastal",
+  "startGrid": [
+    { "x": 44.9, "y": 0, "z": -1.5, "yaw": 0.7373 },
+    { "x": 39.1, "y": 0, "z": -1.0, "yaw": 0.7373 },
+    { "x": 40.2, "y": 0, "z": -6.7, "yaw": 0.7373 },
+    { "x": 34.4, "y": 0, "z": -6.2, "yaw": 0.7373 }
+  ],
+  "waypoints": [
+    { "x": 43.2, "z": 0.0, "targetSpeed": 30.9, "width": 10.1 },
+    { "x": 52.1, "z": 9.8, "targetSpeed": 29.9, "width": 10.6 },
+    { "x": 50.9, "z": 17.4, "targetSpeed": 27.3, "width": 10.8 },
+    { "x": 39.5, "z": 21.0, "targetSpeed": 24.6, "width": 10.4 },
+    { "x": 28.2, "z": 22.4, "targetSpeed": 32.1, "width": 9.8 },
+    { "x": 18.9, "z": 23.9, "targetSpeed": 31.8, "width": 9.4 },
+    { "x": 8.6, "z": 24.9, "targetSpeed": 24.7, "width": 9.6 },
+    { "x": -1.1, "z": 23.9, "targetSpeed": 27.7, "width": 10.1 },
+    { "x": -10.4, "z": 21.4, "targetSpeed": 29.4, "width": 10.6 },
+    { "x": -23.1, "z": 20.1, "targetSpeed": 30.7, "width": 10.8 },
+    { "x": -35.3, "z": 20.5, "targetSpeed": 30.4, "width": 10.4 },
+    { "x": -41.0, "z": 19.7, "targetSpeed": 26.9, "width": 9.8 },
+    { "x": -43.5, "z": 14.7, "targetSpeed": 24.6, "width": 9.4 },
+    { "x": -44.7, "z": 6.4, "targetSpeed": 32.4, "width": 9.6 },
+    { "x": -38.8, "z": -2.1, "targetSpeed": 31.6, "width": 10.1 },
+    { "x": -28.3, "z": -9.2, "targetSpeed": 24.9, "width": 10.6 },
+    { "x": -24.2, "z": -15.5, "targetSpeed": 28.1, "width": 10.8 },
+    { "x": -26.6, "z": -20.9, "targetSpeed": 28.9, "width": 10.4 },
+    { "x": -25.6, "z": -23.7, "targetSpeed": 30.6, "width": 9.8 },
+    { "x": -19.5, "z": -23.1, "targetSpeed": 31.0, "width": 9.4 },
+    { "x": -12.3, "z": -21.7, "targetSpeed": 26.6, "width": 9.6 },
+    { "x": -2.8, "z": -22.5, "targetSpeed": 24.6, "width": 10.1 },
+    { "x": 7.4, "z": -25.0, "targetSpeed": 32.7, "width": 10.6 },
+    { "x": 13.5, "z": -25.5, "targetSpeed": 31.4, "width": 10.8 },
+    { "x": 18.2, "z": -21.9, "targetSpeed": 25.0, "width": 10.4 },
+    { "x": 26.5, "z": -15.9, "targetSpeed": 28.5, "width": 9.8 },
+    { "x": 34.3, "z": -10.1, "targetSpeed": 28.4, "width": 9.4 },
+    { "x": 39.2, "z": -4.8, "targetSpeed": 30.5, "width": 9.6 }
+  ],
+  "checkpoints": [
+    { "x": 43.2, "z": 0.0, "radius": 7.5 },
+    { "x": 28.2, "z": 22.4, "radius": 7.5 },
+    { "x": -10.4, "z": 21.4, "radius": 7.5 },
+    { "x": -44.7, "z": 6.4, "radius": 7.5 },
+    { "x": -25.6, "z": -23.7, "radius": 7.5 },
+    { "x": 13.5, "z": -25.5, "radius": 7.5 }
+  ],
+  "hardBoundaryMargin": 6.5,
+  "surfaceZones": []
+}

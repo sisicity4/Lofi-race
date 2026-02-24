@@ -1,0 +1,164 @@
+import type { Vec2XZ, Vec3XYZ } from './common';
+
+export type GraphicsQuality = 'auto' | 'low' | 'standard';
+export type LanguageCode = 'ja';
+export type SurfaceKind = 'road' | 'grass' | 'sand';
+export type RacePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'paused';
+export type UiMessageTone = 'info' | 'hype' | 'warn' | 'result';
+
+export interface GameConfig {
+  laps: number;
+  cpuCount: number;
+  fixedStepHz: number;
+  graphicsQuality: GraphicsQuality;
+  language: LanguageCode;
+}
+
+export interface Waypoint {
+  x: number;
+  z: number;
+  targetSpeed: number;
+  width: number;
+}
+
+export interface Checkpoint {
+  x: number;
+  z: number;
+  radius: number;
+}
+
+export interface StartGridSlot {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+}
+
+export interface SurfaceZone {
+  kind: SurfaceKind;
+  polygon: [number, number][];
+}
+
+export interface TrackDefinition {
+  id: string;
+  theme: 'coastal';
+  startGrid: StartGridSlot[];
+  waypoints: Waypoint[];
+  checkpoints: Checkpoint[];
+  hardBoundaryMargin: number;
+  surfaceZones: SurfaceZone[];
+}
+
+export interface VehicleParams {
+  mass: number;
+  accelForward: number;
+  brakeForce: number;
+  reverseAccel: number;
+  maxSpeed: number;
+  reverseMaxSpeed: number;
+  drag: number;
+  lateralGrip: number;
+  driftGrip: number;
+  steerRate: number;
+  steerAtSpeedCurve: number;
+  turnRateBase: number;
+  offTrackGripMultiplier: number;
+  offTrackSpeedMultiplier: number;
+  collisionDamping: number;
+  radius: number;
+}
+
+export interface InputState {
+  throttle: number;
+  brake: number;
+  steer: number;
+  handbrake: boolean;
+  reset: boolean;
+  pause: boolean;
+  mute: boolean;
+}
+
+export interface VehicleState {
+  id: string;
+  name: string;
+  isPlayer: boolean;
+  colorHex: number;
+  position: Vec3XYZ;
+  yaw: number;
+  velocityWorld: Vec3XYZ;
+  speedForward: number;
+  steerVisual: number;
+  slipRatio: number;
+  driftActive: boolean;
+  driftChargeMs: number;
+  driftBoostMs: number;
+  driftBoostStrength: number;
+  isOffTrack: boolean;
+  lap: number;
+  checkpointIndex: number;
+  progress01: number;
+  progressMetric: number;
+  finished: boolean;
+  finishOrder: number | null;
+  lapTimesMs: number[];
+  currentLapMs: number;
+  resetCooldownMs: number;
+  respawnWaypointIndex: number;
+}
+
+export interface LeaderboardEntry {
+  vehicleId: string;
+  name: string;
+  rank: number;
+  lap: number;
+  progressMetric: number;
+  finished: boolean;
+  finishOrder: number | null;
+  isPlayer: boolean;
+}
+
+export interface RaceState {
+  phase: RacePhase;
+  elapsedMs: number;
+  leaderboard: LeaderboardEntry[];
+  bestLapMs: number | null;
+  currentLapMs: number;
+}
+
+export interface TrackSample {
+  nearestSegmentIndex: number;
+  segmentT: number;
+  progress01: number;
+  distance: number;
+  nearestPoint: Vec2XZ;
+  tangent: Vec2XZ;
+  waypointIndex: number;
+  width: number;
+}
+
+export interface PhysicsEnv {
+  dt: number;
+  surface: SurfaceKind;
+  offTrack: boolean;
+  speedMultiplier: number;
+}
+
+export interface CountdownSnapshot {
+  active: boolean;
+  label: string | null;
+}
+
+export interface RaceSnapshot {
+  race: RaceState;
+  vehicles: VehicleState[];
+  countdown: CountdownSnapshot;
+  message: string | null;
+  messageTone: UiMessageTone;
+}
+
+export interface SettingsData {
+  graphicsQuality: GraphicsQuality;
+  muted: boolean;
+  masterVolume: number;
+  bestLapMs: number | null;
+}
