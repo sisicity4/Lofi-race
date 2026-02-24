@@ -1,6 +1,6 @@
 import type { TrackDefinition } from '../types/game';
 
-const TRACK_META_URL = '/assets/data/track_coastal.meta.json';
+const TRACK_META_URL = `${import.meta.env.BASE_URL}assets/data/track_coastal.meta.json`;
 
 function isTrackDefinition(value: unknown): value is TrackDefinition {
   if (!value || typeof value !== 'object') return false;
