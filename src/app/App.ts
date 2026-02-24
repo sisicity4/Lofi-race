@@ -11,7 +11,7 @@ import { CameraRig } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { SceneBuilder } from '../render/SceneBuilder';
 import { TrackLoader } from '../track/TrackLoader';
-import type { GraphicsQuality, InputState, RaceSnapshot, SettingsData, TrackDefinition } from '../types/game';
+import type { GraphicsQuality, InputState, OutOfBoundsReason, RaceSnapshot, SettingsData, TrackDefinition } from '../types/game';
 import { HudView } from '../ui/HudView';
 import { MenuView } from '../ui/MenuView';
 import { ResultView } from '../ui/ResultView';
@@ -25,6 +25,13 @@ const ZERO_INPUT: InputState = {
   pause: false,
   mute: false,
 };
+
+interface TransientFx {
+  root: THREE.Group;
+  ageMs: number;
+  lifeMs: number;
+  update: (dtSec: number, ageMs: number, lifeMs: number) => void;
+}
 
 export class App {
   private readonly shell: HTMLDivElement;
@@ -52,6 +59,7 @@ export class App {
   private track: TrackDefinition | null = null;
   private carMeshes = new Map<string, THREE.Group>();
   private nextCheckpointBeacon: THREE.Group | null = null;
+  private activeFx: TransientFx[] = [];
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
@@ -206,6 +214,20 @@ export class App {
       }
     });
 
+    this.eventBus.on('car:oob', ({ vehicleId, x, y, z, reason }) => {
+      if (vehicleId !== 'player') return;
+      this.audio.playOutOfBoundsExplosion();
+      this.hudView.flash('warn');
+      this.spawnOutOfBoundsFx(x, y, z, reason);
+    });
+
+    this.eventBus.on('car:respawned', ({ vehicleId, x, y, z }) => {
+      if (vehicleId !== 'player') return;
+      this.audio.playRespawnCue();
+      this.hudView.flash('go');
+      this.spawnRespawnFx(x, y, z);
+    });
+
     this.eventBus.on('race:lapComplete', ({ vehicleId }) => {
       if (vehicleId === 'player') {
         this.audio.playLapComplete();
@@ -253,6 +275,7 @@ export class App {
     this.hudView.setPaused(false);
     this.audio.setPaused(false);
     this.input.clearAll();
+    this.clearTransientFx();
     this.lastFeedbackKey = '';
     this.portraitPauseApplied = false;
 
@@ -275,6 +298,7 @@ export class App {
     this.menuView.setVisible(true);
     this.menuView.setStatus('タイトルに戻りました。');
     this.input.clearAll();
+    this.clearTransientFx();
     this.lastFeedbackKey = '';
     this.portraitPauseApplied = false;
     this.lastSnapshot = this.raceManager.getSnapshot();
@@ -317,6 +341,7 @@ export class App {
 
     this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec);
     this.updateNextCheckpointBeacon(frameDtSec);
+    this.updateTransientFx(frameDtSec);
     this.renderer.render();
 
     if (this.lastSnapshot) {
@@ -432,6 +457,10 @@ export class App {
     for (const vehicle of this.raceManager.getVehicles()) {
       const mesh = this.carMeshes.get(vehicle.id);
       if (!mesh) continue;
+      mesh.visible = vehicle.outOfBoundsState === 'none';
+      if (!mesh.visible) {
+        continue;
+      }
       mesh.position.set(vehicle.position.x, vehicle.position.y, vehicle.position.z);
       mesh.rotation.y = vehicle.yaw;
       const body = mesh.children[0];
@@ -439,6 +468,139 @@ export class App {
         body.rotation.z = -vehicle.steerVisual * 0.02;
       }
     }
+  }
+
+  private spawnOutOfBoundsFx(x: number, y: number, z: number, reason: OutOfBoundsReason): void {
+    if (!this.renderer) return;
+    const root = new THREE.Group();
+    root.position.set(x, y + 0.4, z);
+
+    const shardGeom = new THREE.BoxGeometry(0.26, 0.26, 0.26);
+    const shardMat = new THREE.MeshStandardMaterial({
+      color: reason === 'wall-contact' ? 0xff7a59 : 0xffb347,
+      emissive: reason === 'wall-contact' ? 0x441206 : 0x3a2208,
+      flatShading: true,
+      roughness: 0.75,
+    });
+    const shards: Array<{ mesh: THREE.Mesh; vel: THREE.Vector3; spin: THREE.Vector3 }> = [];
+    for (let i = 0; i < 11; i += 1) {
+      const mesh = new THREE.Mesh(shardGeom, shardMat);
+      const angle = (i / 11) * Math.PI * 2 + (Math.random() - 0.5) * 0.2;
+      const outward = 4 + Math.random() * 4.2;
+      mesh.position.set((Math.random() - 0.5) * 0.3, Math.random() * 0.35, (Math.random() - 0.5) * 0.3);
+      root.add(mesh);
+      shards.push({
+        mesh,
+        vel: new THREE.Vector3(Math.cos(angle) * outward, 2.2 + Math.random() * 2.2, Math.sin(angle) * outward),
+        spin: new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8),
+      });
+    }
+
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.65, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.18, 24), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.06;
+    root.add(ring);
+
+    const puffMat = new THREE.MeshBasicMaterial({ color: 0x2e2a2a, transparent: true, opacity: 0.36 });
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), puffMat);
+    puff.position.y = 0.5;
+    root.add(puff);
+
+    this.renderer.scene.add(root);
+    this.activeFx.push({
+      root,
+      ageMs: 0,
+      lifeMs: 900,
+      update: (dtSec, ageMs, lifeMs) => {
+        const t = Math.min(1, ageMs / lifeMs);
+        for (const shard of shards) {
+          shard.mesh.position.x += shard.vel.x * dtSec;
+          shard.mesh.position.y += shard.vel.y * dtSec;
+          shard.mesh.position.z += shard.vel.z * dtSec;
+          shard.vel.y -= 7.5 * dtSec;
+          shard.mesh.rotation.x += shard.spin.x * dtSec;
+          shard.mesh.rotation.y += shard.spin.y * dtSec;
+          shard.mesh.rotation.z += shard.spin.z * dtSec;
+          const fade = Math.max(0, 1 - t * 1.15);
+          (shard.mesh.material as THREE.MeshStandardMaterial).opacity = fade;
+          (shard.mesh.material as THREE.MeshStandardMaterial).transparent = true;
+        }
+        ring.scale.setScalar(1 + t * 2.3);
+        ring.position.y = 0.06 + t * 0.15;
+        ringMat.opacity = Math.max(0, 0.65 - t * 0.9);
+        puff.scale.setScalar(1 + t * 2.7);
+        puff.position.y = 0.5 + t * 0.9;
+        puffMat.opacity = Math.max(0, 0.36 - t * 0.4);
+      },
+    });
+  }
+
+  private spawnRespawnFx(x: number, y: number, z: number): void {
+    if (!this.renderer) return;
+    const root = new THREE.Group();
+    root.position.set(x, y + 0.02, z);
+
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x7cfce0, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.98, 24), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    root.add(ring);
+
+    const pillarMat = new THREE.MeshBasicMaterial({ color: 0xb6fff6, transparent: true, opacity: 0.24 });
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.5, 2.4, 8), pillarMat);
+    pillar.position.y = 1.2;
+    root.add(pillar);
+
+    this.renderer.scene.add(root);
+    this.activeFx.push({
+      root,
+      ageMs: 0,
+      lifeMs: 550,
+      update: (_dtSec, ageMs, lifeMs) => {
+        const t = Math.min(1, ageMs / lifeMs);
+        ring.scale.setScalar(1 + t * 2.8);
+        ringMat.opacity = Math.max(0, 0.72 - t * 0.9);
+        pillar.scale.set(1 - t * 0.35, 1 + t * 0.25, 1 - t * 0.35);
+        pillar.position.y = 1.2 + t * 0.35;
+        pillarMat.opacity = Math.max(0, 0.24 - t * 0.3);
+      },
+    });
+  }
+
+  private updateTransientFx(frameDtSec: number): void {
+    if (!this.renderer || this.activeFx.length === 0) return;
+    for (let i = this.activeFx.length - 1; i >= 0; i -= 1) {
+      const fx = this.activeFx[i];
+      fx.ageMs += frameDtSec * 1000;
+      fx.update(frameDtSec, fx.ageMs, fx.lifeMs);
+      if (fx.ageMs < fx.lifeMs) continue;
+      this.renderer.scene.remove(fx.root);
+      this.disposeObjectResources(fx.root);
+      this.activeFx.splice(i, 1);
+    }
+  }
+
+  private disposeObjectResources(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      const geometry = mesh.geometry as THREE.BufferGeometry | undefined;
+      geometry?.dispose?.();
+      const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(material)) {
+        for (const m of material) m.dispose();
+      } else {
+        material?.dispose?.();
+      }
+    });
+  }
+
+  private clearTransientFx(): void {
+    if (!this.renderer || this.activeFx.length === 0) return;
+    for (const fx of this.activeFx) {
+      this.renderer.scene.remove(fx.root);
+      this.disposeObjectResources(fx.root);
+    }
+    this.activeFx = [];
   }
 
   private applyGraphicsQuality(quality: GraphicsQuality): void {

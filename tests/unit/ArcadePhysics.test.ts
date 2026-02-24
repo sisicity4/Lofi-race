@@ -30,6 +30,13 @@ function createState(): VehicleState {
     currentLapMs: 0,
     resetCooldownMs: 0,
     respawnWaypointIndex: 0,
+    outOfBoundsState: 'none',
+    outOfBoundsRespawnMs: 0,
+    oobCooldownMs: 0,
+    lastSafePosition: { x: 0, y: 0, z: 0 },
+    lastSafeYaw: 0,
+    hasLastSafePose: true,
+    lastSafeRespawnWaypointIndex: 0,
   };
 }
 

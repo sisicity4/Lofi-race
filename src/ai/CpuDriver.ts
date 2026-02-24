@@ -12,7 +12,7 @@ export interface CpuDriverContext {
 export class CpuDriver {
   update({ trackProgress, vehicle, allVehicles, speedMultiplier }: CpuDriverContext): InputState {
     const sample = trackProgress.sample({ x: vehicle.position.x, z: vehicle.position.z });
-    const lookAheadSteps = Math.min(5, 2 + Math.floor(Math.abs(vehicle.speedForward) / 11));
+    const lookAheadSteps = Math.min(6, 2 + Math.floor(Math.abs(vehicle.speedForward) / 12));
     const targetIndex = (sample.waypointIndex + lookAheadSteps) % trackProgress.waypointCount();
     const target = trackProgress.getTrack().waypoints[targetIndex];
 
@@ -22,8 +22,9 @@ export class CpuDriver {
     const deltaYaw = angleWrap(desiredYaw - vehicle.yaw);
     const steer = clamp(deltaYaw / 0.8, -1, 1);
 
-    const cornerSharpness = Math.min(1, Math.abs(deltaYaw) / 1.2);
-    const targetSpeed = Math.max(10, target.targetSpeed * speedMultiplier * (1 - cornerSharpness * 0.2));
+    const cornerSharpness = Math.min(1, Math.abs(deltaYaw) / 1.15);
+    const targetSpeedBase = target.targetSpeed * 1.14;
+    const targetSpeed = Math.max(11, targetSpeedBase * speedMultiplier * (1 - cornerSharpness * 0.14));
     const speed = Math.max(0, vehicle.speedForward);
 
     let throttle = 0;
@@ -34,7 +35,7 @@ export class CpuDriver {
       brake = clamp((speed - targetSpeed) / 8, 0.15, 1);
     }
 
-    const handbrake = speed > 18 && Math.abs(deltaYaw) > 0.95;
+    const handbrake = speed > 20 && Math.abs(deltaYaw) > 0.88;
 
     for (const other of allVehicles) {
       if (other.id === vehicle.id) continue;

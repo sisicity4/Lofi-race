@@ -111,6 +111,20 @@ export class AudioManager {
     this.beep(930, 0.1, 'triangle', 0.05, 0.06);
   }
 
+  playOutOfBoundsExplosion(): void {
+    if (!this.ctx) return;
+    this.beep(210, 0.12, 'sawtooth', 0.08);
+    this.beep(145, 0.16, 'square', 0.06, 0.02);
+    this.beep(90, 0.2, 'triangle', 0.05, 0.05);
+  }
+
+  playRespawnCue(): void {
+    if (!this.ctx) return;
+    this.beep(480, 0.06, 'triangle', 0.04);
+    this.beep(720, 0.07, 'triangle', 0.045, 0.05);
+    this.beep(980, 0.08, 'sine', 0.04, 0.1);
+  }
+
   playMoment(kind: 'overtake' | 'warn'): void {
     if (!this.ctx) return;
     if (kind === 'overtake') {

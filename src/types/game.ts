@@ -5,6 +5,8 @@ export type LanguageCode = 'ja';
 export type SurfaceKind = 'road' | 'grass' | 'sand';
 export type RacePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'paused';
 export type UiMessageTone = 'info' | 'hype' | 'warn' | 'result';
+export type OutOfBoundsState = 'none' | 'exploding' | 'respawning';
+export type OutOfBoundsReason = 'wall-contact' | 'fell-off';
 
 export interface GameConfig {
   laps: number;
@@ -104,6 +106,13 @@ export interface VehicleState {
   currentLapMs: number;
   resetCooldownMs: number;
   respawnWaypointIndex: number;
+  outOfBoundsState: OutOfBoundsState;
+  outOfBoundsRespawnMs: number;
+  oobCooldownMs: number;
+  lastSafePosition: Vec3XYZ;
+  lastSafeYaw: number;
+  hasLastSafePose: boolean;
+  lastSafeRespawnWaypointIndex: number;
 }
 
 export interface LeaderboardEntry {

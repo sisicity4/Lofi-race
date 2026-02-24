@@ -9,7 +9,19 @@ import { TrackProgress } from '../track/TrackProgress';
 import { ArcadePhysics } from '../vehicle/ArcadePhysics';
 import { Vehicle } from '../vehicle/Vehicle';
 import type { GameEvents } from './GameState';
-import type { GameConfig, InputState, RacePhase, RaceSnapshot, RaceState, TrackDefinition, UiMessageTone, VehicleParams, VehicleState } from '../types/game';
+import type {
+  GameConfig,
+  InputState,
+  OutOfBoundsReason,
+  RacePhase,
+  RaceSnapshot,
+  RaceState,
+  TrackDefinition,
+  TrackSample,
+  UiMessageTone,
+  VehicleParams,
+  VehicleState,
+} from '../types/game';
 import { CPU_COLORS, PLAYER_COLOR } from '../data/config';
 
 export interface RaceManagerOptions {
@@ -27,6 +39,12 @@ interface RuntimeVehicle {
 }
 
 const RESET_COOLDOWN_MS = 3000;
+const OOB_EXTRA_MARGIN = 8.5;
+const OOB_RESPAWN_DELAY_MS = 2000;
+const OOB_RETRIGGER_COOLDOWN_MS = 400;
+const OOB_EXPLOSION_VISIBLE_MS = 350;
+const WALL_TOUCH_EPS = 0.15;
+const PLAYER_OOB_WALL_EXPAND = 2.5;
 
 export class RaceManager {
   readonly trackProgress: TrackProgress;
@@ -173,6 +191,14 @@ export class RaceManager {
     for (const rv of this.runtimeVehicles) {
       const state = rv.entity.state;
       state.resetCooldownMs = Math.max(0, state.resetCooldownMs - dtSec * 1000);
+      state.oobCooldownMs = Math.max(0, state.oobCooldownMs - dtSec * 1000);
+
+      if (state.outOfBoundsState !== 'none') {
+        if (state.isPlayer) {
+          this.updateOutOfBoundsTimer(state, dtSec);
+        }
+        continue;
+      }
 
       if (state.finished) {
         state.currentLapMs = state.lapTimesMs[state.lapTimesMs.length - 1] ?? state.currentLapMs;
@@ -199,6 +225,9 @@ export class RaceManager {
       const preSample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
       const offTrack = preSample.distance > preSample.width * 0.5;
       state.isOffTrack = offTrack;
+      if (state.isPlayer) {
+        this.captureSafePose(state, preSample);
+      }
 
       const speedMultiplier = 1;
       this.physics.step(state, input, rv.entity.params, {
@@ -208,7 +237,22 @@ export class RaceManager {
         speedMultiplier,
       });
 
-      this.applyTrackBoundary(state);
+      const postSample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
+      state.isOffTrack = postSample.distance > postSample.width * 0.5;
+
+      if (state.isPlayer) {
+        this.captureSafePose(state, postSample);
+        if (this.isPlayerFellOff(postSample)) {
+          this.triggerOutOfBounds(state, 'fell-off');
+          continue;
+        }
+        if (this.isPlayerWallTouch(postSample)) {
+          this.triggerOutOfBounds(state, 'wall-contact');
+          continue;
+        }
+      } else {
+        this.applyTrackBoundary(state);
+      }
 
       if (state.isPlayer) {
         this.updatePlayerMomentFeedback(state, dtSec);
@@ -228,6 +272,9 @@ export class RaceManager {
       for (let j = i + 1; j < this.runtimeVehicles.length; j += 1) {
         const a = this.runtimeVehicles[i].entity.state;
         const b = this.runtimeVehicles[j].entity.state;
+        if (a.outOfBoundsState !== 'none' || b.outOfBoundsState !== 'none') {
+          continue;
+        }
         const impulse = this.physics.resolveCollision(
           a,
           this.runtimeVehicles[i].entity.params.radius,
@@ -245,8 +292,17 @@ export class RaceManager {
 
     for (const rv of this.runtimeVehicles) {
       const state = rv.entity.state;
-      const sample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
       const lapState = this.lapTracker.getState(state.id);
+
+      if (state.outOfBoundsState !== 'none') {
+        state.checkpointIndex = lapState.lastPassedCheckpointIndex;
+        state.lap = lapState.lap;
+        state.lapTimesMs = [...lapState.lapTimesMs];
+        state.currentLapMs = state.finished ? state.currentLapMs : Math.max(0, Math.floor(this.elapsedMs - lapState.lapStartMs));
+        continue;
+      }
+
+      const sample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
 
       state.progress01 = sample.progress01;
       state.isOffTrack = sample.distance > sample.width * 0.5;
@@ -371,6 +427,12 @@ export class RaceManager {
       });
       this.runtimeVehicles[i].entity.state.respawnWaypointIndex = sample.waypointIndex;
       this.runtimeVehicles[i].entity.state.progress01 = sample.progress01;
+      this.runtimeVehicles[i].entity.state.lastSafeRespawnWaypointIndex = sample.waypointIndex;
+      this.runtimeVehicles[i].entity.state.lastSafePosition.x = this.runtimeVehicles[i].entity.state.position.x;
+      this.runtimeVehicles[i].entity.state.lastSafePosition.y = this.runtimeVehicles[i].entity.state.position.y;
+      this.runtimeVehicles[i].entity.state.lastSafePosition.z = this.runtimeVehicles[i].entity.state.position.z;
+      this.runtimeVehicles[i].entity.state.lastSafeYaw = this.runtimeVehicles[i].entity.state.yaw;
+      this.runtimeVehicles[i].entity.state.hasLastSafePose = true;
     }
 
     this.leaderboard = this.positionSystem.computeLeaderboard(this.getVehicles());
@@ -383,6 +445,50 @@ export class RaceManager {
     state.position.y = 0;
     state.position.z = respawn.z;
     state.yaw = respawn.yaw;
+    this.resetVehicleKinematics(state);
+    state.resetCooldownMs = RESET_COOLDOWN_MS;
+    state.outOfBoundsState = 'none';
+    state.outOfBoundsRespawnMs = 0;
+    state.oobCooldownMs = 0;
+    state.lastSafePosition.x = state.position.x;
+    state.lastSafePosition.y = state.position.y;
+    state.lastSafePosition.z = state.position.z;
+    state.lastSafeYaw = state.yaw;
+    state.hasLastSafePose = true;
+    state.lastSafeRespawnWaypointIndex = state.respawnWaypointIndex;
+  }
+
+  private respawnVehicleToSafePose(state: VehicleState): void {
+    if (state.hasLastSafePose) {
+      state.position.x = state.lastSafePosition.x;
+      state.position.y = state.lastSafePosition.y;
+      state.position.z = state.lastSafePosition.z;
+      state.yaw = state.lastSafeYaw;
+      state.respawnWaypointIndex = state.lastSafeRespawnWaypointIndex;
+      this.resetVehicleKinematics(state);
+      state.outOfBoundsState = 'none';
+      state.outOfBoundsRespawnMs = 0;
+      state.oobCooldownMs = OOB_RETRIGGER_COOLDOWN_MS;
+      state.resetCooldownMs = Math.max(state.resetCooldownMs, 350);
+      this.options.eventBus.emit('car:respawned', {
+        vehicleId: state.id,
+        x: state.position.x,
+        y: state.position.y,
+        z: state.position.z,
+      });
+      return;
+    }
+    this.respawnVehicle(state);
+    state.oobCooldownMs = OOB_RETRIGGER_COOLDOWN_MS;
+    this.options.eventBus.emit('car:respawned', {
+      vehicleId: state.id,
+      x: state.position.x,
+      y: state.position.y,
+      z: state.position.z,
+    });
+  }
+
+  private resetVehicleKinematics(state: VehicleState): void {
     state.velocityWorld.x = 0;
     state.velocityWorld.y = 0;
     state.velocityWorld.z = 0;
@@ -393,7 +499,62 @@ export class RaceManager {
     state.driftChargeMs = 0;
     state.driftBoostMs = 0;
     state.driftBoostStrength = 0;
-    state.resetCooldownMs = RESET_COOLDOWN_MS;
+  }
+
+  private captureSafePose(state: VehicleState, sample: TrackSample): void {
+    if (!state.isPlayer) return;
+    const safeRadius = sample.width * 0.45;
+    if (sample.distance > safeRadius) return;
+    state.lastSafePosition.x = state.position.x;
+    state.lastSafePosition.y = state.position.y;
+    state.lastSafePosition.z = state.position.z;
+    state.lastSafeYaw = state.yaw;
+    state.hasLastSafePose = true;
+    state.lastSafeRespawnWaypointIndex = sample.waypointIndex;
+  }
+
+  private getBaseBoundaryLimit(sample: TrackSample): number {
+    return sample.width * 0.5 + this.options.track.hardBoundaryMargin;
+  }
+
+  private getPlayerWallLimit(sample: TrackSample): number {
+    return this.getBaseBoundaryLimit(sample) + PLAYER_OOB_WALL_EXPAND;
+  }
+
+  private isPlayerWallTouch(sample: TrackSample): boolean {
+    return sample.distance >= this.getPlayerWallLimit(sample) - WALL_TOUCH_EPS;
+  }
+
+  private isPlayerFellOff(sample: TrackSample): boolean {
+    return sample.distance >= this.getPlayerWallLimit(sample) + OOB_EXTRA_MARGIN;
+  }
+
+  private triggerOutOfBounds(state: VehicleState, reason: OutOfBoundsReason): void {
+    if (!state.isPlayer || state.outOfBoundsState !== 'none') return;
+    state.outOfBoundsState = 'exploding';
+    state.outOfBoundsRespawnMs = OOB_RESPAWN_DELAY_MS;
+    this.resetVehicleKinematics(state);
+    const label = reason === 'wall-contact' ? '壁に接触! 2秒後に復帰' : '場外! 2秒後に復帰';
+    this.setMessage(label, 1200, 'warn');
+    this.options.eventBus.emit('car:oob', {
+      vehicleId: state.id,
+      x: state.position.x,
+      y: state.position.y,
+      z: state.position.z,
+      reason,
+    });
+  }
+
+  private updateOutOfBoundsTimer(state: VehicleState, dtSec: number): void {
+    if (state.outOfBoundsState === 'none') return;
+    const prev = state.outOfBoundsRespawnMs;
+    state.outOfBoundsRespawnMs = Math.max(0, state.outOfBoundsRespawnMs - dtSec * 1000);
+    if (state.outOfBoundsState === 'exploding' && state.outOfBoundsRespawnMs <= OOB_RESPAWN_DELAY_MS - OOB_EXPLOSION_VISIBLE_MS) {
+      state.outOfBoundsState = 'respawning';
+    }
+    if (prev > 0 && state.outOfBoundsRespawnMs <= 0) {
+      this.respawnVehicleToSafePose(state);
+    }
   }
 
   private applyTrackBoundary(state: VehicleState): void {

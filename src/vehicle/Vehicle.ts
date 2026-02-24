@@ -39,6 +39,13 @@ export class Vehicle {
       currentLapMs: 0,
       resetCooldownMs: 0,
       respawnWaypointIndex: 0,
+      outOfBoundsState: 'none',
+      outOfBoundsRespawnMs: 0,
+      oobCooldownMs: 0,
+      lastSafePosition: { x: options.spawn.x, y: options.spawn.y, z: options.spawn.z },
+      lastSafeYaw: options.spawn.yaw,
+      hasLastSafePose: true,
+      lastSafeRespawnWaypointIndex: 0,
     };
   }
 
@@ -66,5 +73,12 @@ export class Vehicle {
     this.state.currentLapMs = 0;
     this.state.resetCooldownMs = 0;
     this.state.respawnWaypointIndex = 0;
+    this.state.outOfBoundsState = 'none';
+    this.state.outOfBoundsRespawnMs = 0;
+    this.state.oobCooldownMs = 0;
+    this.state.lastSafePosition = { x: spawn.x, y: spawn.y, z: spawn.z };
+    this.state.lastSafeYaw = spawn.yaw;
+    this.state.hasLastSafePose = true;
+    this.state.lastSafeRespawnWaypointIndex = 0;
   }
 }
