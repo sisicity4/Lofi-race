@@ -21,7 +21,6 @@ const ZERO_INPUT: InputState = {
   brake: 0,
   steer: 0,
   handbrake: false,
-  reset: false,
   pause: false,
   mute: false,
 };
@@ -333,6 +332,10 @@ export class App {
 
     if (this.lastSnapshot.race.phase === 'finished' && !this.resultView.isVisible()) {
       this.resultView.show(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
+      if (this.shouldUseMobileTouchUI()) {
+        this.hudView.setVisible(false);
+        this.input.clearAll();
+      }
     }
   }
 

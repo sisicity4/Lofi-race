@@ -75,7 +75,6 @@ export interface InputState {
   brake: number;
   steer: number;
   handbrake: boolean;
-  reset: boolean;
   pause: boolean;
   mute: boolean;
 }

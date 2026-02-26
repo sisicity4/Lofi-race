@@ -217,11 +217,6 @@ export class RaceManager {
         });
       }
 
-      if (state.isPlayer && input.reset && state.resetCooldownMs <= 0) {
-        this.respawnVehicle(state);
-        this.setMessage('車体をリセットしました', 1200);
-      }
-
       const preSample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
       const offTrack = preSample.distance > preSample.width * 0.5;
       state.isOffTrack = offTrack;

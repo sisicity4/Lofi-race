@@ -29,6 +29,8 @@ export class HudView {
   private readonly driftBadgeEl: HTMLDivElement;
   private readonly driftLinesEl: HTMLDivElement;
   private readonly flashEl: HTMLDivElement;
+  private readonly touchSteerZone: HTMLDivElement | null;
+  private readonly touchSteerThumb: HTMLDivElement | null;
   private readonly touchButtons = new Map<TouchAction, HTMLButtonElement>();
   private callbacks: Partial<HudCallbacks> = {};
   private lastShownFinish = false;
@@ -78,7 +80,6 @@ export class HudView {
           <li><span class="kb-key">S / ↓</span><span class="kb-desc">ブレーキ</span></li>
           <li><span class="kb-key">A D / ← →</span><span class="kb-desc">ステア</span></li>
           <li><span class="kb-key">Space</span><span class="kb-desc">ドリフト</span></li>
-          <li><span class="kb-key">R</span><span class="kb-desc">リセット</span></li>
           <li><span class="kb-key">Esc / M</span><span class="kb-desc">ポーズ / ミュート</span></li>
         </ul>
       </section>
@@ -131,13 +132,16 @@ export class HudView {
     this.driftLinesEl = this.root.querySelector('#driftLines') as HTMLDivElement;
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
 
+    this.buildTouchControls();
+    this.touchSteerZone = this.root.querySelector('#touchSteerZone');
+    this.touchSteerThumb = this.root.querySelector('#touchSteerThumb');
+
     const resumeBtn = this.root.querySelector('#resumeBtn') as HTMLButtonElement;
     const pauseTitleBtn = this.root.querySelector('#pauseTitleBtn') as HTMLButtonElement;
     this.pauseBtn.addEventListener('click', () => this.callbacks.onPauseButton?.());
     resumeBtn.addEventListener('click', () => this.callbacks.onResumeButton?.());
     pauseTitleBtn.addEventListener('click', () => this.callbacks.onTitleButton?.());
 
-    this.buildTouchControls();
     this.refreshOrientation();
     window.addEventListener('resize', () => this.refreshOrientation());
     if (screen.orientation) {
@@ -172,9 +176,13 @@ export class HudView {
   setTouchEnabled(enabled: boolean): void {
     this.touchControls.classList.toggle('hidden', !enabled);
     this.mobileBanner.classList.toggle('hidden', !enabled);
+    this.root.classList.toggle('touch-layout', enabled);
   }
 
   bindTouchControls(input: InputManager): void {
+    if (this.touchSteerZone && this.touchSteerThumb) {
+      input.bindVirtualJoystick(this.touchSteerZone, this.touchSteerThumb);
+    }
     for (const [action, button] of this.touchButtons) {
       input.bindTouchButton(button, action);
     }
@@ -288,6 +296,13 @@ export class HudView {
     leftCluster.className = 'touch-cluster touch-left';
     const rightCluster = document.createElement('div');
     rightCluster.className = 'touch-cluster touch-right';
+    const joystick = document.createElement('div');
+    joystick.id = 'touchSteerZone';
+    joystick.className = 'touch-joystick';
+    joystick.innerHTML = `
+      <div class="touch-joystick-ring"></div>
+      <div id="touchSteerThumb" class="touch-joystick-thumb"></div>
+    `;
 
     const makeBtn = (action: TouchAction, label: string, classes = ''): HTMLButtonElement => {
       const btn = document.createElement('button');
@@ -298,13 +313,11 @@ export class HudView {
       return btn;
     };
 
-    leftCluster.append(makeBtn('left', '◀'));
-    leftCluster.append(makeBtn('right', '▶'));
-    leftCluster.append(makeBtn('reset', 'RESET', 'large warn'));
+    leftCluster.append(joystick);
 
-    rightCluster.append(makeBtn('throttle', 'GO', 'warn'));
-    rightCluster.append(makeBtn('brake', 'BRAKE'));
-    rightCluster.append(makeBtn('handbrake', 'DRIFT', 'large'));
+    rightCluster.append(makeBtn('throttle', 'GO', 'primary touch-main'));
+    rightCluster.append(makeBtn('brake', 'BRAKE', 'touch-secondary'));
+    rightCluster.append(makeBtn('handbrake', 'DRIFT', 'large touch-drift'));
 
     this.touchControls.append(leftCluster, rightCluster);
   }

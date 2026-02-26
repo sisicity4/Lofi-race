@@ -40,7 +40,7 @@ function createState(): VehicleState {
   };
 }
 
-const noInput: InputState = { throttle: 0, brake: 0, steer: 0, handbrake: false, reset: false, pause: false, mute: false };
+const noInput: InputState = { throttle: 0, brake: 0, steer: 0, handbrake: false, pause: false, mute: false };
 
 describe('ArcadePhysics', () => {
   it('decelerates when no input is applied', () => {
