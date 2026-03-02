@@ -5,6 +5,7 @@ export type LanguageCode = 'ja';
 export type SurfaceKind = 'road' | 'grass' | 'sand';
 export type RacePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'paused';
 export type UiMessageTone = 'info' | 'hype' | 'warn' | 'result';
+export type ComboSource = 'none' | 'drift' | 'straight';
 export type OutOfBoundsState = 'none' | 'exploding' | 'respawning';
 export type OutOfBoundsReason = 'wall-contact' | 'fell-off';
 
@@ -41,9 +42,11 @@ export interface SurfaceZone {
   polygon: [number, number][];
 }
 
+export type TrackTheme = 'coastal' | 'raceway' | 'desert' | 'forest' | 'studio';
+
 export interface TrackDefinition {
   id: string;
-  theme: 'coastal';
+  theme: TrackTheme;
   startGrid: StartGridSlot[];
   waypoints: Waypoint[];
   checkpoints: Checkpoint[];
@@ -131,6 +134,11 @@ export interface RaceState {
   leaderboard: LeaderboardEntry[];
   bestLapMs: number | null;
   currentLapMs: number;
+  comboLevel: number;
+  maxCombo: number;
+  comboMeter01: number;
+  comboSource: ComboSource;
+  comboSpeedMultiplier: number;
 }
 
 export interface TrackSample {

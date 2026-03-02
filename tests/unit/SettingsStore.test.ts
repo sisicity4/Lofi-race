@@ -15,7 +15,7 @@ describe('SettingsStore', () => {
   it('loads defaults when storage is empty', () => {
     const store = new SettingsStore(new MemoryStorage());
     const settings = store.load();
-    expect(settings.trackId).toBe('coastal-gp-01');
+    expect(settings.trackId).toBe('raceway-gp-long-01');
     expect(settings.graphicsQuality).toBe('auto');
     expect(settings.muted).toBe(false);
   });
@@ -23,8 +23,8 @@ describe('SettingsStore', () => {
   it('saves and loads settings round-trip', () => {
     const storage = new MemoryStorage();
     const store = new SettingsStore(storage);
-    store.save({ trackId: 'harbor-city-gp-01', graphicsQuality: 'low', muted: true, masterVolume: 0.25, bestLapMs: 12345 });
+    store.save({ trackId: 'forest-gp-long-01', graphicsQuality: 'low', muted: true, masterVolume: 0.25, bestLapMs: 12345 });
     const loaded = store.load();
-    expect(loaded).toEqual({ trackId: 'harbor-city-gp-01', graphicsQuality: 'low', muted: true, masterVolume: 0.25, bestLapMs: 12345 });
+    expect(loaded).toEqual({ trackId: 'forest-gp-long-01', graphicsQuality: 'low', muted: true, masterVolume: 0.25, bestLapMs: 12345 });
   });
 });

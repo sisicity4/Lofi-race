@@ -51,7 +51,7 @@ export class ResultView {
     this.titleEl.textContent = rank ? `FINISH! ${rank}位` : 'FINISH!';
     this.verdictEl.textContent = this.getVerdict(rank ?? 4, player);
     this.root.dataset.rank = String(rank ?? 4);
-    this.subtitleEl.textContent = `合計 ${formatMs(snapshot.race.elapsedMs)} / ベストラップ ${snapshot.race.bestLapMs ? formatMs(snapshot.race.bestLapMs) : '--'}`;
+    this.subtitleEl.textContent = `合計 ${formatMs(snapshot.race.elapsedMs)} / ベストラップ ${snapshot.race.bestLapMs ? formatMs(snapshot.race.bestLapMs) : '--'} / MAX COMBO x${snapshot.race.maxCombo}`;
 
     this.listEl.innerHTML = '';
     for (const entry of snapshot.race.leaderboard) {

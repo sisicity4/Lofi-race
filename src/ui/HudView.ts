@@ -26,6 +26,9 @@ export class HudView {
   private readonly touchControls: HTMLDivElement;
   private readonly mobileBanner: HTMLDivElement;
   private readonly speedDialEl: HTMLDivElement;
+  private readonly comboBadgeEl: HTMLDivElement;
+  private readonly comboValueEl: HTMLSpanElement;
+  private readonly comboFillEl: HTMLSpanElement;
   private readonly driftBadgeEl: HTMLDivElement;
   private readonly driftLinesEl: HTMLDivElement;
   private readonly flashEl: HTMLDivElement;
@@ -89,6 +92,10 @@ export class HudView {
         <div class="speed-value" id="hudSpeed">0</div>
         <div class="speed-unit">km/h</div>
       </div>
+      <div id="comboBadge" class="combo-badge hidden" data-source="none">
+        <div class="combo-head"><span>COMBO</span><span id="comboValue">x0</span></div>
+        <div class="combo-meter"><span id="comboFill"></span></div>
+      </div>
 
       <div id="driftBadge" class="drift-badge hidden">DRIFT</div>
       <div id="countdownEl" class="countdown"></div>
@@ -128,6 +135,9 @@ export class HudView {
     this.touchControls = this.root.querySelector('#touchControls') as HTMLDivElement;
     this.mobileBanner = this.root.querySelector('#mobileBanner') as HTMLDivElement;
     this.speedDialEl = this.root.querySelector('#speedDial') as HTMLDivElement;
+    this.comboBadgeEl = this.root.querySelector('#comboBadge') as HTMLDivElement;
+    this.comboValueEl = this.root.querySelector('#comboValue') as HTMLSpanElement;
+    this.comboFillEl = this.root.querySelector('#comboFill') as HTMLSpanElement;
     this.driftBadgeEl = this.root.querySelector('#driftBadge') as HTMLDivElement;
     this.driftLinesEl = this.root.querySelector('#driftLines') as HTMLDivElement;
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
@@ -165,6 +175,10 @@ export class HudView {
       this.lastPlayerRank = null;
       this.root.classList.remove('is-fast', 'is-drifting', 'is-boosting');
       this.driftBadgeEl.textContent = 'DRIFT';
+      this.comboBadgeEl.classList.add('hidden');
+      this.comboValueEl.textContent = 'x0';
+      this.comboFillEl.style.transform = 'scaleX(0)';
+      this.comboBadgeEl.dataset.source = 'none';
     }
   }
 
@@ -238,6 +252,12 @@ export class HudView {
       this.driftBadgeEl.textContent = 'DRIFT';
     }
     this.driftBadgeEl.classList.toggle('hidden', !((drifting || boosting) && snapshot.race.phase === 'racing'));
+
+    const comboVisible = snapshot.race.phase === 'racing' && snapshot.race.comboLevel > 0;
+    this.comboBadgeEl.classList.toggle('hidden', !comboVisible);
+    this.comboValueEl.textContent = `x${snapshot.race.comboLevel}`;
+    this.comboFillEl.style.transform = `scaleX(${Math.max(0, Math.min(1, snapshot.race.comboMeter01))})`;
+    this.comboBadgeEl.dataset.source = snapshot.race.comboSource;
 
     if (playerEntry && this.lastPlayerRank !== null && playerEntry.rank !== this.lastPlayerRank) {
       this.flash(playerEntry.rank < this.lastPlayerRank ? 'overtake' : 'warn');

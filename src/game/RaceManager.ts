@@ -10,6 +10,7 @@ import { ArcadePhysics } from '../vehicle/ArcadePhysics';
 import { Vehicle } from '../vehicle/Vehicle';
 import type { GameEvents } from './GameState';
 import type {
+  ComboSource,
   GameConfig,
   InputState,
   OutOfBoundsReason,
@@ -45,6 +46,8 @@ const OOB_RETRIGGER_COOLDOWN_MS = 400;
 const OOB_EXPLOSION_VISIBLE_MS = 350;
 const WALL_TOUCH_EPS = 0.15;
 const PLAYER_OOB_WALL_EXPAND = 2.5;
+const COMBO_STEP_MS = 1700;
+const COMBO_MAX_LEVEL = 8;
 
 export class RaceManager {
   readonly trackProgress: TrackProgress;
@@ -71,6 +74,12 @@ export class RaceManager {
   private rankFeedbackCooldownMs = 0;
   private speedHypeCooldownMs = 0;
   private driftBoostHypeCooldownMs = 0;
+  private comboLevel = 0;
+  private maxCombo = 0;
+  private comboMeterMs = 0;
+  private comboSource: ComboSource = 'none';
+  private comboDriftMs = 0;
+  private comboStraightMs = 0;
 
   constructor(private readonly options: RaceManagerOptions) {
     this.trackProgress = new TrackProgress(options.track);
@@ -113,6 +122,11 @@ export class RaceManager {
       leaderboard: this.leaderboard,
       bestLapMs: this.bestLapMs,
       currentLapMs: player.currentLapMs,
+      comboLevel: this.comboLevel,
+      maxCombo: this.maxCombo,
+      comboMeter01: this.comboLevel > 0 ? clamp(this.comboMeterMs / COMBO_STEP_MS, 0, 1) : 0,
+      comboSource: this.comboSource,
+      comboSpeedMultiplier: this.getPlayerComboSpeedMultiplier(player),
     };
   }
 
@@ -120,7 +134,7 @@ export class RaceManager {
     this.resetRaceInternals();
     this.phase = 'countdown';
     this.countdown.start();
-    this.setMessage('3ラップ / まずは1コーナーを丁寧に', 1800, 'info');
+    this.setMessage(this.getStartMessageByTheme(), 1800, 'info');
   }
 
   returnToMenu(): void {
@@ -224,7 +238,7 @@ export class RaceManager {
         this.captureSafePose(state, preSample);
       }
 
-      const speedMultiplier = 1;
+      const speedMultiplier = state.isPlayer ? this.getPlayerComboSpeedMultiplier(state) : 1;
       this.physics.step(state, input, rv.entity.params, {
         dt: dtSec,
         surface: offTrack ? 'grass' : 'road',
@@ -279,6 +293,9 @@ export class RaceManager {
         );
         if (impulse > 0.2) {
           this.options.eventBus.emit('car:collision', { a: a.id, b: b.id, impulse });
+          if ((a.id === 'player' || b.id === 'player') && impulse > 0.78) {
+            this.breakCombo('hit');
+          }
         }
       }
     }
@@ -408,6 +425,7 @@ export class RaceManager {
     this.rankFeedbackCooldownMs = 0;
     this.speedHypeCooldownMs = 0;
     this.driftBoostHypeCooldownMs = 0;
+    this.resetComboState();
     this.countdown.stop();
     this.lapTracker = new LapTracker(this.options.track, this.options.config.laps);
 
@@ -529,6 +547,7 @@ export class RaceManager {
     state.outOfBoundsState = 'exploding';
     state.outOfBoundsRespawnMs = OOB_RESPAWN_DELAY_MS;
     this.resetVehicleKinematics(state);
+    this.breakCombo('oob');
     const label = reason === 'wall-contact' ? '壁に接触! 2秒後に復帰' : '場外! 2秒後に復帰';
     this.setMessage(label, 1200, 'warn');
     this.options.eventBus.emit('car:oob', {
@@ -599,6 +618,17 @@ export class RaceManager {
   private updatePlayerMomentFeedback(state: VehicleState, dtSec: number): void {
     const speedKmh = Math.abs(state.speedForward) * 3.6;
     const drifting = !state.isOffTrack && speedKmh > 35 && (state.driftActive || state.slipRatio > 0.28);
+    const straightFast =
+      !state.isOffTrack &&
+      speedKmh > 96 &&
+      !drifting &&
+      state.slipRatio < 0.22 &&
+      Math.abs(state.steerVisual) < 0.2;
+    const comboLeveledUp = this.updateAutoCombo(state, dtSec, drifting, straightFast, speedKmh);
+    if (comboLeveledUp) {
+      return;
+    }
+
     if (drifting) {
       this.driftAccumMs += dtSec * 1000;
       if (this.driftAccumMs > 420 && this.driftPraiseCooldownMs <= 0) {
@@ -623,6 +653,97 @@ export class RaceManager {
       this.setMessage('ハイスピード! ブレーキング勝負', 800, 'hype');
       this.speedHypeCooldownMs = 3500;
     }
+  }
+
+  private updateAutoCombo(
+    state: VehicleState,
+    dtSec: number,
+    drifting: boolean,
+    straightFast: boolean,
+    speedKmh: number,
+  ): boolean {
+    const dtMs = dtSec * 1000;
+    const driftActive = drifting;
+    const straightActive = straightFast;
+
+    if (driftActive) {
+      this.comboDriftMs = Math.min(3500, this.comboDriftMs + dtMs);
+    } else {
+      this.comboDriftMs = Math.max(0, this.comboDriftMs - dtMs * 1.8);
+    }
+
+    if (straightActive) {
+      this.comboStraightMs = Math.min(5000, this.comboStraightMs + dtMs);
+    } else {
+      this.comboStraightMs = Math.max(0, this.comboStraightMs - dtMs * 1.5);
+    }
+
+    let gainMs = 0;
+    if (driftActive && this.comboDriftMs > 240) {
+      this.comboSource = 'drift';
+      gainMs = dtMs * (1.08 + clamp(state.slipRatio, 0, 1.2) * 0.3);
+    } else if (straightActive && this.comboStraightMs > 320) {
+      this.comboSource = 'straight';
+      gainMs = dtMs * (1 + clamp((speedKmh - 96) / 110, 0, 0.42));
+    } else {
+      const decay = state.isOffTrack || speedKmh < 60 ? dtMs * 2.35 : dtMs * 1.4;
+      this.comboMeterMs = Math.max(0, this.comboMeterMs - decay);
+      if (this.comboMeterMs <= 0 && this.comboLevel > 0) {
+        this.comboLevel = Math.max(0, this.comboLevel - 1);
+        this.comboMeterMs = this.comboLevel > 0 ? COMBO_STEP_MS * 0.62 : 0;
+      }
+      if (this.comboLevel === 0 && this.comboMeterMs === 0) {
+        this.comboSource = 'none';
+      }
+      return false;
+    }
+
+    this.comboMeterMs += gainMs;
+    if (this.comboMeterMs < COMBO_STEP_MS) {
+      return false;
+    }
+
+    this.comboMeterMs -= COMBO_STEP_MS;
+    this.comboLevel = Math.min(COMBO_MAX_LEVEL, this.comboLevel + 1);
+    this.maxCombo = Math.max(this.maxCombo, this.comboLevel);
+    const label = this.comboSource === 'drift' ? 'DRIFT' : 'STRAIGHT';
+    this.setMessage(`${label} COMBO x${this.comboLevel}`, 720, 'hype');
+
+    if (this.comboLevel >= COMBO_MAX_LEVEL) {
+      this.comboMeterMs = COMBO_STEP_MS;
+    }
+    return true;
+  }
+
+  private breakCombo(reason: 'hit' | 'oob'): void {
+    const maxCombo = this.comboLevel;
+    if (maxCombo <= 0 && this.comboMeterMs <= 0) return;
+    const maxSeen = this.maxCombo;
+    this.resetComboState();
+    this.maxCombo = Math.max(maxSeen, maxCombo);
+    if (reason === 'hit' && maxCombo >= 2) {
+      this.setMessage(`COMBO BREAK x${maxCombo}`, 760, 'warn');
+    }
+  }
+
+  private resetComboState(): void {
+    this.comboLevel = 0;
+    this.maxCombo = 0;
+    this.comboMeterMs = 0;
+    this.comboSource = 'none';
+    this.comboDriftMs = 0;
+    this.comboStraightMs = 0;
+  }
+
+  private getPlayerComboSpeedMultiplier(state: VehicleState): number {
+    if (!state.isPlayer) return 1;
+    if (this.comboLevel <= 0) return 1;
+    if (state.isOffTrack || state.outOfBoundsState !== 'none') return 1;
+
+    const levelBonus = Math.min(0.12, this.comboLevel * 0.016);
+    const sourceBonus = this.comboSource === 'drift' ? 0.018 : this.comboSource === 'straight' ? 0.01 : 0;
+    const totalBonus = Math.min(0.16, levelBonus + sourceBonus);
+    return 1 + totalBonus;
   }
 
   private updatePlayerRankFeedback(): void {
@@ -654,5 +775,21 @@ export class RaceManager {
     if (rank === 2) return '2位フィニッシュ! 惜しい!';
     if (rank === 3) return '3位フィニッシュ! 次は表彰台の真ん中へ';
     return '完走! ライン取りを詰めて再挑戦';
+  }
+
+  private getStartMessageByTheme(): string {
+    switch (this.options.track.theme) {
+      case 'raceway':
+        return '高速レイアウト / 直線の伸びとブレーキング勝負';
+      case 'desert':
+        return '砂漠コース / 早めに向きを作って立ち上がれ';
+      case 'forest':
+        return 'テクニカル森林 / 小さく丁寧な切り返しが鍵';
+      case 'studio':
+        return 'トリッキースタジオ / リズム重視で攻めよう';
+      case 'coastal':
+      default:
+        return '3ラップ / まずは1コーナーを丁寧に';
+    }
   }
 }

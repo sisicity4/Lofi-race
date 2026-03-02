@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { AudioManager } from '../audio/AudioManager';
 import { EventBus } from '../core/EventBus';
 import { GameLoop } from '../core/GameLoop';
-import { DEFAULT_GAME_CONFIG, DEFAULT_VEHICLE_PARAMS } from '../data/config';
+import { DEFAULT_GAME_CONFIG, getVehicleParamsForTheme } from '../data/config';
 import { SettingsStore } from '../data/SettingsStore';
 import type { GameEvents } from '../game/GameState';
 import { RaceManager } from '../game/RaceManager';
@@ -60,6 +60,8 @@ export class App {
   private carMeshes = new Map<string, THREE.Group>();
   private nextCheckpointBeacon: THREE.Group | null = null;
   private activeFx: TransientFx[] = [];
+  private shadowFlowGroups: THREE.Object3D[] = [];
+  private shadowFlowTimeSec = 0;
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
@@ -339,12 +341,13 @@ export class App {
     this.settings.trackId = this.selectedTrackId;
 
     this.sceneBuilder.buildScene(this.renderer.scene, track);
+    this.collectShadowFlowGroups();
     this.createOrAttachNextCheckpointBeacon();
 
     this.raceManager = new RaceManager({
       track,
       config: DEFAULT_GAME_CONFIG,
-      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      vehicleParams: getVehicleParamsForTheme(track.theme),
       eventBus: this.eventBus,
       initialBestLapMs: this.settings.bestLapMs,
     });
@@ -387,6 +390,7 @@ export class App {
 
     this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec);
     this.updateNextCheckpointBeacon(frameDtSec);
+    this.updateShadowFlows(frameDtSec);
     this.updateTransientFx(frameDtSec);
     this.renderer.render();
 
@@ -647,6 +651,47 @@ export class App {
       this.disposeObjectResources(fx.root);
     }
     this.activeFx = [];
+  }
+
+  private collectShadowFlowGroups(): void {
+    if (!this.renderer) {
+      this.shadowFlowGroups = [];
+      this.shadowFlowTimeSec = 0;
+      return;
+    }
+
+    this.shadowFlowGroups = [];
+    this.renderer.scene.traverse((object) => {
+      const data = object.userData as { shadowFlow?: boolean };
+      if (data.shadowFlow) {
+        this.shadowFlowGroups.push(object);
+      }
+    });
+    this.shadowFlowTimeSec = 0;
+  }
+
+  private updateShadowFlows(frameDtSec: number): void {
+    if (this.shadowFlowGroups.length === 0) return;
+    this.shadowFlowTimeSec += frameDtSec;
+
+    for (const group of this.shadowFlowGroups) {
+      const flow = group.userData as {
+        span?: number;
+        speed?: number;
+        spacing?: number;
+      };
+      const span = Math.max(1, flow.span ?? 60);
+      const speed = flow.speed ?? 22;
+      const spacing = flow.spacing ?? 6;
+
+      for (let i = 0; i < group.children.length; i += 1) {
+        const child = group.children[i];
+        const baseOffset = (child.userData as { baseOffset?: number }).baseOffset ?? i * spacing;
+        const raw = baseOffset + this.shadowFlowTimeSec * speed;
+        const wrapped = ((raw % span) + span) % span;
+        child.position.z = wrapped - span * 0.5;
+      }
+    }
   }
 
   private applyGraphicsQuality(quality: GraphicsQuality): void {

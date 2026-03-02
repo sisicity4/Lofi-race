@@ -48,8 +48,10 @@ export class AudioManager {
     if (!this.ctx || !this.engineGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
     if (paused) {
-      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
-      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+      this.engineGain.gain.cancelScheduledValues(now);
+      this.skidGain.gain.cancelScheduledValues(now);
+      this.engineGain.gain.setValueAtTime(0, now);
+      this.skidGain.gain.setValueAtTime(0, now);
     }
   }
 
@@ -70,8 +72,11 @@ export class AudioManager {
     if (!this.ctx || !this.engineOsc || !this.engineGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
     if (!active || this.paused) {
-      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
-      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+      // Keep engine/skid channels hard-muted until race phase is actively running.
+      this.engineGain.gain.cancelScheduledValues(now);
+      this.skidGain.gain.cancelScheduledValues(now);
+      this.engineGain.gain.setValueAtTime(0, now);
+      this.skidGain.gain.setValueAtTime(0, now);
       return;
     }
     const speedNorm = clamp(Math.abs(speed) / 50, 0, 1);
@@ -164,12 +169,12 @@ export class AudioManager {
     this.bgmGain = bgmGain;
 
     const engineGain = ctx.createGain();
-    engineGain.gain.value = 0.0001;
+    engineGain.gain.value = 0;
     engineGain.connect(master);
     this.engineGain = engineGain;
 
     const skidGain = ctx.createGain();
-    skidGain.gain.value = 0.0001;
+    skidGain.gain.value = 0;
     skidGain.connect(master);
     this.skidGain = skidGain;
 

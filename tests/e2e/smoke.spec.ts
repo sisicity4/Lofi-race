@@ -10,9 +10,9 @@ test('can switch map from menu and start race', async ({ page }) => {
   await page.goto('/');
   const trackSelect = page.locator('#trackSelect');
   await expect(trackSelect).toBeVisible();
-  await expect(trackSelect.locator('option')).toHaveCount(2);
+  await expect(trackSelect.locator('option')).toHaveCount(4);
 
-  await trackSelect.selectOption('harbor-city-gp-01');
+  await trackSelect.selectOption('studio-gp-long-01');
   await page.getByRole('button', { name: 'レース開始' }).click();
 
   await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();

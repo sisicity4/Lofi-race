@@ -2,6 +2,9 @@
 
 ブラウザだけで動くローポリ3DレーシングゲームのMVPです。
 
+## Live URL
+- https://lofi-race.vercel.app
+
 ## Tech
 - Vite
 - TypeScript
