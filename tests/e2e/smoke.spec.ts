@@ -6,6 +6,18 @@ test('shows the title menu', async ({ page }) => {
   await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
 });
 
+test('can switch map from menu and start race', async ({ page }) => {
+  await page.goto('/');
+  const trackSelect = page.locator('#trackSelect');
+  await expect(trackSelect).toBeVisible();
+  await expect(trackSelect.locator('option')).toHaveCount(2);
+
+  await trackSelect.selectOption('harbor-city-gp-01');
+  await page.getByRole('button', { name: 'レース開始' }).click();
+
+  await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+});
+
 test.describe('mobile', () => {
   test.use({
     viewport: { width: 844, height: 390 },

@@ -1,7 +1,9 @@
 import type { GraphicsQuality, SettingsData } from '../types/game';
+import type { TrackCatalogEntry } from '../track/TrackLoader';
 
 interface MenuCallbacks {
   onStart: () => void;
+  onTrackChange: (trackId: string) => void;
   onQualityChange: (quality: GraphicsQuality) => void;
   onMuteToggle: () => void;
   onVolumeChange: (volume: number) => void;
@@ -10,6 +12,7 @@ interface MenuCallbacks {
 export class MenuView {
   readonly root: HTMLDivElement;
   private readonly startButton: HTMLButtonElement;
+  private readonly trackSelect: HTMLSelectElement;
   private readonly qualitySelect: HTMLSelectElement;
   private readonly muteButton: HTMLButtonElement;
   private readonly volumeInput: HTMLInputElement;
@@ -34,12 +37,16 @@ export class MenuView {
         </div>
 
         <div class="controls-note">
-          <div><strong>Desktop:</strong> WASD / 矢印, Space=Drift, R=Reset, Esc=Pause</div>
-          <div><strong>Mobile:</strong> タッチボタン操作（横画面推奨）</div>
+          <div><strong>Desktop:</strong> WASD / 矢印, Space=Drift, Esc=Pause</div>
+          <div><strong>Mobile:</strong> 左ジョイスティック + 右アクション（横画面推奨）</div>
         </div>
 
         <div class="panel menu-settings">
           <div class="small" style="margin-bottom:8px;">設定</div>
+          <label class="small menu-setting-row">
+            <span>マップ</span>
+            <select id="trackSelect" class="btn menu-select"></select>
+          </label>
           <label class="small menu-setting-row">
             <span>画質</span>
             <select id="qualitySelect" class="btn menu-select">
@@ -65,12 +72,14 @@ export class MenuView {
     parent.append(this.root);
 
     this.startButton = this.root.querySelector('#startButton') as HTMLButtonElement;
+    this.trackSelect = this.root.querySelector('#trackSelect') as HTMLSelectElement;
     this.qualitySelect = this.root.querySelector('#qualitySelect') as HTMLSelectElement;
     this.muteButton = this.root.querySelector('#muteButton') as HTMLButtonElement;
     this.volumeInput = this.root.querySelector('#volumeInput') as HTMLInputElement;
     this.subtitle = this.root.querySelector('#menuSubtitle') as HTMLParagraphElement;
 
     this.startButton.addEventListener('click', () => this.callbacks.onStart?.());
+    this.trackSelect.addEventListener('change', () => this.callbacks.onTrackChange?.(this.trackSelect.value));
     this.qualitySelect.addEventListener('change', () => {
       this.callbacks.onQualityChange?.(this.qualitySelect.value as GraphicsQuality);
     });
@@ -88,12 +97,27 @@ export class MenuView {
     this.muteButton.textContent = settings.muted ? 'ミュート解除' : 'ミュート切替';
   }
 
+  setTrackOptions(tracks: TrackCatalogEntry[], selectedTrackId: string): void {
+    this.trackSelect.innerHTML = '';
+    for (const track of tracks) {
+      const option = document.createElement('option');
+      option.value = track.id;
+      option.textContent = track.label;
+      this.trackSelect.append(option);
+    }
+    this.trackSelect.value = tracks.some((track) => track.id === selectedTrackId)
+      ? selectedTrackId
+      : (tracks[0]?.id ?? '');
+    this.trackSelect.disabled = tracks.length <= 1;
+  }
+
   setVisible(visible: boolean): void {
     this.root.classList.toggle('hidden', !visible);
   }
 
   setLoading(loading: boolean): void {
     this.startButton.disabled = loading;
+    this.trackSelect.disabled = loading || this.trackSelect.options.length <= 1;
     this.startButton.textContent = loading ? '読み込み中...' : 'レース開始';
   }
 

@@ -19,6 +19,7 @@ export class SettingsStore {
       if (!raw) return { ...DEFAULT_SETTINGS };
       const parsed = JSON.parse(raw) as Partial<SettingsData>;
       return {
+        trackId: parsed.trackId ?? DEFAULT_SETTINGS.trackId,
         graphicsQuality: parsed.graphicsQuality ?? DEFAULT_SETTINGS.graphicsQuality,
         muted: parsed.muted ?? DEFAULT_SETTINGS.muted,
         masterVolume: typeof parsed.masterVolume === 'number' ? parsed.masterVolume : DEFAULT_SETTINGS.masterVolume,

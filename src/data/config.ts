@@ -9,6 +9,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
 };
 
 export const DEFAULT_SETTINGS: SettingsData = {
+  trackId: 'coastal-gp-01',
   graphicsQuality: 'auto',
   muted: false,
   masterVolume: 0.6,

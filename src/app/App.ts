@@ -10,7 +10,7 @@ import { InputManager } from '../input/InputManager';
 import { CameraRig } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { SceneBuilder } from '../render/SceneBuilder';
-import { TrackLoader } from '../track/TrackLoader';
+import { TrackLoader, type TrackCatalogEntry } from '../track/TrackLoader';
 import type { GraphicsQuality, InputState, OutOfBoundsReason, RaceSnapshot, SettingsData, TrackDefinition } from '../types/game';
 import { HudView } from '../ui/HudView';
 import { MenuView } from '../ui/MenuView';
@@ -47,6 +47,7 @@ export class App {
   private readonly eventBus = new EventBus<GameEvents>();
   private readonly sceneBuilder = new SceneBuilder();
   private readonly trackLoader = new TrackLoader();
+  private readonly trackCatalog: TrackCatalogEntry[];
   private readonly settings: SettingsData;
   private readonly audio: AudioManager;
   private readonly debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
@@ -64,9 +65,13 @@ export class App {
   private rafResizePending = false;
   private lastFeedbackKey = '';
   private portraitPauseApplied = false;
+  private selectedTrackId: string;
 
   constructor(private readonly root: HTMLElement) {
     this.settings = this.settingsStore.load();
+    this.trackCatalog = this.trackLoader.getTrackCatalog();
+    this.selectedTrackId = this.trackLoader.resolveTrackId(this.settings.trackId);
+    this.settings.trackId = this.selectedTrackId;
     this.audio = new AudioManager({ muted: this.settings.muted, masterVolume: this.settings.masterVolume });
 
     this.shell = document.createElement('div');
@@ -120,6 +125,7 @@ export class App {
 
   async mount(): Promise<void> {
     this.menuView.setSettings(this.settings);
+    this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
     this.hudView.bindTouchControls(this.input);
     this.input.attach();
@@ -134,28 +140,12 @@ export class App {
     this.menuView.setLoading(true);
 
     try {
-      const track = await this.trackLoader.loadDefaultTrack();
-      this.track = track;
+      const initialTrack = await this.trackLoader.loadTrack(this.selectedTrackId);
       this.renderer = new Renderer(this.canvas);
       this.renderer.applyQuality(this.settings.graphicsQuality);
       this.renderer.resize();
       this.cameraRig = new CameraRig(this.renderer.camera);
-
-      this.sceneBuilder.buildScene(this.renderer.scene, track);
-      this.createOrAttachNextCheckpointBeacon();
-
-      this.raceManager = new RaceManager({
-        track,
-        config: DEFAULT_GAME_CONFIG,
-        vehicleParams: DEFAULT_VEHICLE_PARAMS,
-        eventBus: this.eventBus,
-        initialBestLapMs: this.settings.bestLapMs,
-      });
-
-      this.createVehicleMeshes();
-      this.syncVehicleMeshes();
-      this.lastSnapshot = this.raceManager.getSnapshot();
-      this.hudView.update(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
+      this.rebuildRaceForTrack(initialTrack);
       this.hudView.setVisible(false);
       this.menuView.setVisible(true);
       this.resultView.hide();
@@ -165,7 +155,7 @@ export class App {
         render: (_alpha, frameDtSec) => this.render(frameDtSec),
       });
       this.loop.start();
-      this.menuView.setStatus('準備完了。レース開始でプレイできます。');
+      this.menuView.setStatus(`準備完了。${this.getTrackLabel(this.selectedTrackId)} でプレイできます。`);
     } catch (error) {
       console.error(error);
       this.menuView.setError('ゲーム初期化に失敗しました。ページ再読み込みを試してください。');
@@ -177,6 +167,9 @@ export class App {
   private bindViews(): void {
     this.menuView.bind({
       onStart: () => this.handleStartRace(),
+      onTrackChange: (trackId) => {
+        void this.handleTrackChange(trackId);
+      },
       onQualityChange: (quality) => this.applyGraphicsQuality(quality),
       onMuteToggle: () => this.toggleMute(),
       onVolumeChange: (volume) => this.setMasterVolume(volume),
@@ -336,6 +329,56 @@ export class App {
         this.hudView.setVisible(false);
         this.input.clearAll();
       }
+    }
+  }
+
+  private rebuildRaceForTrack(track: TrackDefinition): void {
+    if (!this.renderer) return;
+    this.track = track;
+    this.selectedTrackId = this.trackLoader.resolveTrackId(track.id);
+    this.settings.trackId = this.selectedTrackId;
+
+    this.sceneBuilder.buildScene(this.renderer.scene, track);
+    this.createOrAttachNextCheckpointBeacon();
+
+    this.raceManager = new RaceManager({
+      track,
+      config: DEFAULT_GAME_CONFIG,
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: this.eventBus,
+      initialBestLapMs: this.settings.bestLapMs,
+    });
+
+    this.createVehicleMeshes();
+    this.syncVehicleMeshes();
+    this.lastSnapshot = this.raceManager.getSnapshot();
+    this.hudView.update(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
+  }
+
+  private async handleTrackChange(trackId: string): Promise<void> {
+    const resolvedTrackId = this.trackLoader.resolveTrackId(trackId);
+    this.menuView.setTrackOptions(this.trackCatalog, resolvedTrackId);
+
+    if (resolvedTrackId === this.selectedTrackId) return;
+    if (this.raceManager && this.raceManager.getPhase() !== 'menu') return;
+    if (!this.renderer) return;
+
+    this.menuView.setLoading(true);
+    try {
+      const nextTrack = await this.trackLoader.loadTrack(resolvedTrackId);
+      this.clearTransientFx();
+      this.resultView.hide();
+      this.hudView.setVisible(false);
+      this.rebuildRaceForTrack(nextTrack);
+      this.persistSettings();
+      this.menuView.setStatus(`${this.getTrackLabel(this.selectedTrackId)} を選択中`);
+    } catch (error) {
+      console.error(error);
+      this.menuView.setStatus('マップの読み込みに失敗しました。');
+      this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
+    } finally {
+      this.menuView.setLoading(false);
+      this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     }
   }
 
@@ -731,6 +774,10 @@ export class App {
     } finally {
       this.refreshOrientationGuard();
     }
+  }
+
+  private getTrackLabel(trackId: string): string {
+    return this.trackCatalog.find((track) => track.id === trackId)?.label ?? trackId;
   }
 
   private shouldUseMobileTouchUI(): boolean {

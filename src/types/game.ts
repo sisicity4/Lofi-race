@@ -165,6 +165,7 @@ export interface RaceSnapshot {
 }
 
 export interface SettingsData {
+  trackId: string;
   graphicsQuality: GraphicsQuality;
   muted: boolean;
   masterVolume: number;
