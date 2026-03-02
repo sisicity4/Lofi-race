@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AudioManager } from '../audio/AudioManager';
+import { AudioManager, type UiClickTone } from '../audio/AudioManager';
 import { EventBus } from '../core/EventBus';
 import { GameLoop } from '../core/GameLoop';
 import { DEFAULT_GAME_CONFIG, getVehicleParamsForTheme } from '../data/config';
@@ -106,6 +106,7 @@ export class App {
     this.orientationGateButton = this.orientationGateEl.querySelector('#orientationGateButton') as HTMLButtonElement;
     this.orientationGateHint = this.orientationGateEl.querySelector('#orientationGateHint') as HTMLParagraphElement;
     this.orientationGateButton.addEventListener('click', () => {
+      this.playUiClick('secondary');
       void this.tryForceLandscape(true);
     });
 
@@ -151,6 +152,7 @@ export class App {
       this.hudView.setVisible(false);
       this.menuView.setVisible(true);
       this.resultView.hide();
+      this.audio.setPaused(true);
 
       this.loop = new GameLoop(DEFAULT_GAME_CONFIG.fixedStepHz, {
         fixedUpdate: (dtSec) => this.fixedUpdate(dtSec),
@@ -168,24 +170,55 @@ export class App {
 
   private bindViews(): void {
     this.menuView.bind({
-      onStart: () => this.handleStartRace(),
+      onStart: () => {
+        this.playUiClick('primary');
+        void this.handleStartRace();
+      },
       onTrackChange: (trackId) => {
+        this.playUiClick('secondary');
         void this.handleTrackChange(trackId);
       },
-      onQualityChange: (quality) => this.applyGraphicsQuality(quality),
-      onMuteToggle: () => this.toggleMute(),
+      onQualityChange: (quality) => {
+        this.playUiClick('secondary');
+        this.applyGraphicsQuality(quality);
+      },
+      onMuteToggle: () => {
+        const wasMuted = this.audio.isMuted();
+        if (!wasMuted) {
+          this.playUiClick('toggle');
+        }
+        this.toggleMute();
+        if (wasMuted) {
+          this.playUiClick('toggle');
+        }
+      },
       onVolumeChange: (volume) => this.setMasterVolume(volume),
     });
 
     this.hudView.bind({
-      onPauseButton: () => this.raceManager?.togglePause(),
-      onResumeButton: () => this.raceManager?.togglePause(),
-      onTitleButton: () => this.returnToTitle(),
+      onPauseButton: () => {
+        this.playUiClick('secondary');
+        this.raceManager?.togglePause();
+      },
+      onResumeButton: () => {
+        this.playUiClick('primary');
+        this.raceManager?.togglePause();
+      },
+      onTitleButton: () => {
+        this.playUiClick('secondary');
+        this.returnToTitle();
+      },
     });
 
     this.resultView.bind({
-      onRetry: () => this.handleStartRace(true),
-      onBackToTitle: () => this.returnToTitle(),
+      onRetry: () => {
+        this.playUiClick('primary');
+        void this.handleStartRace(true);
+      },
+      onBackToTitle: () => {
+        this.playUiClick('secondary');
+        this.returnToTitle();
+      },
     });
   }
 
@@ -286,7 +319,7 @@ export class App {
   private returnToTitle(): void {
     if (!this.raceManager) return;
     this.raceManager.returnToMenu();
-    this.audio.setPaused(false);
+    this.audio.setPaused(true);
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
@@ -823,6 +856,10 @@ export class App {
 
   private getTrackLabel(trackId: string): string {
     return this.trackCatalog.find((track) => track.id === trackId)?.label ?? trackId;
+  }
+
+  private playUiClick(tone: UiClickTone): void {
+    this.audio.playUiClick(tone);
   }
 
   private shouldUseMobileTouchUI(): boolean {

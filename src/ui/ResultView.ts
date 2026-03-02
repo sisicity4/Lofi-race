@@ -53,24 +53,40 @@ export class ResultView {
     this.root.dataset.rank = String(rank ?? 4);
     this.subtitleEl.textContent = `合計 ${formatMs(snapshot.race.elapsedMs)} / ベストラップ ${snapshot.race.bestLapMs ? formatMs(snapshot.race.bestLapMs) : '--'} / MAX COMBO x${snapshot.race.maxCombo}`;
 
-    this.listEl.innerHTML = '';
+    this.listEl.textContent = '';
+    const vehiclesById = new Map(snapshot.vehicles.map((vehicle) => [vehicle.id, vehicle]));
     for (const entry of snapshot.race.leaderboard) {
-      const vehicle = snapshot.vehicles.find((v) => v.id === entry.vehicleId);
+      const vehicle = vehiclesById.get(entry.vehicleId);
       const li = document.createElement('li');
       li.className = `result-item${entry.isPlayer ? ' player' : ''}`;
       const lapTimesText = vehicle?.lapTimesMs?.slice(0, totalLaps).map((ms) => formatMs(ms)).join(' / ') ?? '-';
-      const swatch = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#ffffff';
-      li.innerHTML = `
-        <span>${entry.rank}</span>
-        <div>
-          <div style="font-weight:700; display:flex; align-items:center; gap:8px;">
-            <span class="car-swatch" style="background:${swatch}"></span>
-            <span>${entry.name}</span>
-          </div>
-          <div class="small">${lapTimesText}</div>
-        </div>
-        <span>${vehicle?.finished ? 'FIN' : `L${Math.min(totalLaps, (vehicle?.lap ?? 0) + 1)}`}</span>
-      `;
+
+      const rankCell = document.createElement('span');
+      rankCell.textContent = String(entry.rank);
+
+      const body = document.createElement('div');
+      const nameRow = document.createElement('div');
+      nameRow.style.fontWeight = '700';
+      nameRow.style.display = 'flex';
+      nameRow.style.alignItems = 'center';
+      nameRow.style.gap = '8px';
+
+      const swatch = document.createElement('span');
+      swatch.className = 'car-swatch';
+      swatch.style.backgroundColor = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#ffffff';
+      const nameText = document.createElement('span');
+      nameText.textContent = entry.name;
+      nameRow.append(swatch, nameText);
+
+      const lapTimes = document.createElement('div');
+      lapTimes.className = 'small';
+      lapTimes.textContent = lapTimesText;
+      body.append(nameRow, lapTimes);
+
+      const stateCell = document.createElement('span');
+      stateCell.textContent = vehicle?.finished ? 'FIN' : `L${Math.min(totalLaps, (vehicle?.lap ?? 0) + 1)}`;
+
+      li.append(rankCell, body, stateCell);
       this.listEl.append(li);
     }
 

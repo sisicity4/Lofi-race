@@ -39,6 +39,7 @@ export class HudView {
   private lastShownFinish = false;
   private lastCountdownLabel: string | null = null;
   private lastPlayerRank: number | null = null;
+  private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
 
   constructor(parent: HTMLElement, private readonly shell: HTMLElement) {
@@ -173,6 +174,8 @@ export class HudView {
       this.lastShownFinish = false;
       this.lastCountdownLabel = null;
       this.lastPlayerRank = null;
+      this.lastLeaderboardKey = '';
+      this.leaderboardList.textContent = '';
       this.root.classList.remove('is-fast', 'is-drifting', 'is-boosting');
       this.driftBadgeEl.textContent = 'DRIFT';
       this.comboBadgeEl.classList.add('hidden');
@@ -263,21 +266,7 @@ export class HudView {
       this.flash(playerEntry.rank < this.lastPlayerRank ? 'overtake' : 'warn');
     }
     this.lastPlayerRank = playerEntry?.rank ?? null;
-
-    this.leaderboardList.innerHTML = '';
-    const entries = snapshot.race.leaderboard;
-    for (const entry of entries) {
-      const li = document.createElement('li');
-      if (entry.isPlayer) li.classList.add('player');
-      const vehicle = snapshot.vehicles.find((v) => v.id === entry.vehicleId);
-      const swatch = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#fff';
-      li.innerHTML = `
-        <span class="lb-rank">${entry.rank}</span>
-        <span class="lb-name"><span class="car-swatch" style="background:${swatch}"></span>${entry.name}</span>
-        <span class="lb-lap">L${Math.min(totalLaps, entry.lap + (entry.finished ? 0 : 1))}</span>
-      `;
-      this.leaderboardList.append(li);
-    }
+    this.updateLeaderboard(snapshot, totalLaps);
 
     if (snapshot.countdown.active && snapshot.countdown.label) {
       this.countdownEl.classList.add('visible');
@@ -362,5 +351,43 @@ export class HudView {
     this.flashEl.classList.remove('active');
     delete this.flashEl.dataset.kind;
     this.shell.classList.remove('victory-pulse');
+  }
+
+  private updateLeaderboard(snapshot: RaceSnapshot, totalLaps: number): void {
+    const entries = snapshot.race.leaderboard;
+    const key = entries
+      .map((entry) => `${entry.vehicleId}:${entry.rank}:${entry.lap}:${entry.finished ? 1 : 0}`)
+      .join('|');
+    if (key === this.lastLeaderboardKey) return;
+    this.lastLeaderboardKey = key;
+
+    const vehiclesById = new Map(snapshot.vehicles.map((vehicle) => [vehicle.id, vehicle]));
+    this.leaderboardList.textContent = '';
+
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      if (entry.isPlayer) li.classList.add('player');
+
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = String(entry.rank);
+
+      const name = document.createElement('span');
+      name.className = 'lb-name';
+      const swatch = document.createElement('span');
+      swatch.className = 'car-swatch';
+      const vehicle = vehiclesById.get(entry.vehicleId);
+      swatch.style.backgroundColor = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#ffffff';
+      const nameText = document.createElement('span');
+      nameText.textContent = entry.name;
+      name.append(swatch, nameText);
+
+      const lap = document.createElement('span');
+      lap.className = 'lb-lap';
+      lap.textContent = `L${Math.min(totalLaps, entry.lap + (entry.finished ? 0 : 1))}`;
+
+      li.append(rank, name, lap);
+      this.leaderboardList.append(li);
+    }
   }
 }

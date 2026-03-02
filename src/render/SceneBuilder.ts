@@ -432,15 +432,24 @@ export class SceneBuilder {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.y = 0.02;
     mesh.name = 'RoadMesh';
+    mesh.renderOrder = 1;
     return mesh;
   }
 
   private createRoadEdge(track: TrackDefinition, theme: TrackDefinition['theme']): THREE.Mesh {
     const geometry = this.buildRibbonGeometry(track, 0.9);
-    const material = new THREE.MeshStandardMaterial({ color: this.getRoadEdgeColor(theme), flatShading: true, roughness: 1 });
+    const material = new THREE.MeshStandardMaterial({
+      color: this.getRoadEdgeColor(theme),
+      flatShading: true,
+      roughness: 1,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+    });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.y = 0.015;
     mesh.scale.set(1.024, 1, 1.024);
+    mesh.renderOrder = 2;
     return mesh;
   }
 
@@ -452,18 +461,33 @@ export class SceneBuilder {
     const width = start.width * 0.5;
 
     const geometry = new THREE.PlaneGeometry(width * 2, 1.2);
-    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.9 });
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      flatShading: true,
+      roughness: 0.9,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -3,
+    });
     const line = new THREE.Mesh(geometry, material);
     line.rotation.x = -Math.PI / 2;
     line.position.set(start.x, 0.04, start.z);
     line.rotation.z = Math.atan2(normal.z, normal.x);
+    line.renderOrder = 3;
     return line;
   }
 
   private createCenterMarkers(track: TrackDefinition): THREE.Group {
     const group = new THREE.Group();
     group.name = 'center-markers';
-    const mat = new THREE.MeshStandardMaterial({ color: 0xfff4d6, flatShading: true, roughness: 0.95 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xfff4d6,
+      flatShading: true,
+      roughness: 0.95,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -3,
+    });
     const geo = new THREE.BoxGeometry(0.32, 0.03, 1.45);
 
     for (let i = 0; i < track.waypoints.length; i += 1) {
@@ -480,6 +504,7 @@ export class SceneBuilder {
         const marker = new THREE.Mesh(geo, mat);
         marker.position.set(a.x + dx * t, 0.045, a.z + dz * t);
         marker.rotation.y = yaw;
+        marker.renderOrder = 4;
         group.add(marker);
       }
     }
