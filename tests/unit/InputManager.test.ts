@@ -23,4 +23,38 @@ describe('InputManager', () => {
     input.clearAll();
     expect(input.snapshot().steer).toBe(0);
   });
+
+  it('treats touch boost as one-shot input', () => {
+    const input = new InputManager();
+    input.setTouchAction('boost', true);
+    const first = input.snapshot();
+    const second = input.snapshot();
+    expect(first.boost).toBe(true);
+    expect(second.boost).toBe(false);
+  });
+
+  it('clearAll clears pending one-shot boost', () => {
+    const input = new InputManager();
+    input.setTouchAction('boost', true);
+    input.clearAll();
+    expect(input.snapshot().boost).toBe(false);
+  });
+
+  it('treats Shift boost as one-shot and ignores repeat keydown', () => {
+    const input = new InputManager();
+    (input as unknown as { onKeyDown: (event: KeyboardEvent) => void }).onKeyDown({
+      code: 'ShiftLeft',
+      repeat: false,
+      preventDefault: () => undefined,
+    } as unknown as KeyboardEvent);
+    expect(input.snapshot().boost).toBe(true);
+    expect(input.snapshot().boost).toBe(false);
+
+    (input as unknown as { onKeyDown: (event: KeyboardEvent) => void }).onKeyDown({
+      code: 'ShiftLeft',
+      repeat: true,
+      preventDefault: () => undefined,
+    } as unknown as KeyboardEvent);
+    expect(input.snapshot().boost).toBe(false);
+  });
 });

@@ -13,6 +13,7 @@ import type {
   ComboSource,
   GameConfig,
   InputState,
+  OverdriveState,
   OutOfBoundsReason,
   RacePhase,
   RaceSnapshot,
@@ -48,6 +49,19 @@ const WALL_TOUCH_EPS = 0.15;
 const PLAYER_OOB_WALL_EXPAND = 2.5;
 const COMBO_STEP_MS = 1700;
 const COMBO_MAX_LEVEL = 8;
+const OVERDRIVE_MIN_METER = 0.35;
+const OVERDRIVE_MIN_DURATION_MS = 1000;
+const OVERDRIVE_MAX_DURATION_MS = 2600;
+const OVERDRIVE_MIN_SPEED_MULTIPLIER = 1.12;
+const OVERDRIVE_MAX_SPEED_MULTIPLIER = 1.28;
+const OVERDRIVE_PENALTY_MS = 2200;
+const OVERDRIVE_PENALTY_SPEED_MULTIPLIER = 0.72;
+const OVERDRIVE_DRIFT_GAIN_PER_SEC = 0.78;
+const OVERDRIVE_WALL_GAIN_PER_SEC = 1.02;
+const OVERDRIVE_IDLE_DECAY_PER_SEC = 0.085;
+const OVERDRIVE_OVERTAKE_BONUS = 0.12;
+const OVERDRIVE_FAIL_COLLISION_IMPULSE = 0.7;
+const CPU_ADAPTIVE_TICK_MS = 2000;
 
 export class RaceManager {
   readonly trackProgress: TrackProgress;
@@ -80,6 +94,13 @@ export class RaceManager {
   private comboSource: ComboSource = 'none';
   private comboDriftMs = 0;
   private comboStraightMs = 0;
+  private overdriveState: OverdriveState = 'idle';
+  private overdriveMeter01 = 0;
+  private overdriveActiveMs = 0;
+  private overdrivePenaltyMs = 0;
+  private overdriveSpeedMultiplier = 1;
+  private cpuAdaptiveBias = 0;
+  private cpuAdaptiveTickMs = 0;
 
   constructor(private readonly options: RaceManagerOptions) {
     this.trackProgress = new TrackProgress(options.track);
@@ -127,6 +148,12 @@ export class RaceManager {
       comboMeter01: this.comboLevel > 0 ? clamp(this.comboMeterMs / COMBO_STEP_MS, 0, 1) : 0,
       comboSource: this.comboSource,
       comboSpeedMultiplier: this.getPlayerComboSpeedMultiplier(player),
+      overdriveState: this.overdriveState,
+      overdriveMeter01: this.overdriveMeter01,
+      overdriveActiveMs: Math.max(0, Math.floor(this.overdriveActiveMs)),
+      overdrivePenaltyMs: Math.max(0, Math.floor(this.overdrivePenaltyMs)),
+      overdriveSpeedMultiplier: this.getPlayerOverdriveSpeedMultiplier(),
+      cpuAdaptiveBias: this.cpuAdaptiveBias,
     };
   }
 
@@ -198,9 +225,11 @@ export class RaceManager {
     this.rankFeedbackCooldownMs = Math.max(0, this.rankFeedbackCooldownMs - dtSec * 1000);
     this.speedHypeCooldownMs = Math.max(0, this.speedHypeCooldownMs - dtSec * 1000);
     this.driftBoostHypeCooldownMs = Math.max(0, this.driftBoostHypeCooldownMs - dtSec * 1000);
+    this.updateOverdriveRuntime(dtSec);
 
     const vehicleStates = this.getVehicles();
     const rankById = new Map(this.leaderboard.map((entry) => [entry.vehicleId, entry.rank]));
+    this.cpuAdaptiveTickMs += dtSec * 1000;
 
     for (const rv of this.runtimeVehicles) {
       const state = rv.entity.state;
@@ -222,7 +251,7 @@ export class RaceManager {
       let input = playerInput;
       if (!state.isPlayer) {
         const rank = rankById.get(state.id) ?? this.runtimeVehicles.length;
-        const speedMultiplier = this.rubberband.getMultiplier(rank, this.runtimeVehicles.length);
+        const speedMultiplier = this.rubberband.getMultiplier(rank, this.runtimeVehicles.length, this.cpuAdaptiveBias);
         input = rv.cpuDriver!.update({
           trackProgress: this.trackProgress,
           vehicle: state,
@@ -236,9 +265,10 @@ export class RaceManager {
       state.isOffTrack = offTrack;
       if (state.isPlayer) {
         this.captureSafePose(state, preSample);
+        this.tryActivateOverdrive(input.boost);
       }
 
-      const speedMultiplier = state.isPlayer ? this.getPlayerComboSpeedMultiplier(state) : 1;
+      const speedMultiplier = state.isPlayer ? this.getPlayerRaceSpeedMultiplier(state) : 1;
       this.physics.step(state, input, rv.entity.params, {
         dt: dtSec,
         surface: offTrack ? 'grass' : 'road',
@@ -251,6 +281,7 @@ export class RaceManager {
 
       if (state.isPlayer) {
         this.captureSafePose(state, postSample);
+        this.updateOverdriveMeter(state, postSample, dtSec);
         if (this.isPlayerFellOff(postSample)) {
           this.triggerOutOfBounds(state, 'fell-off');
           continue;
@@ -293,8 +324,13 @@ export class RaceManager {
         );
         if (impulse > 0.2) {
           this.options.eventBus.emit('car:collision', { a: a.id, b: b.id, impulse });
-          if ((a.id === 'player' || b.id === 'player') && impulse > 0.78) {
-            this.breakCombo('hit');
+          if (a.id === 'player' || b.id === 'player') {
+            if (impulse >= OVERDRIVE_FAIL_COLLISION_IMPULSE && this.overdriveState === 'active') {
+              this.failOverdrive('collision');
+            }
+            if (impulse > 0.78) {
+              this.breakCombo('hit');
+            }
           }
         }
       }
@@ -359,6 +395,10 @@ export class RaceManager {
     }
 
     this.leaderboard = this.positionSystem.computeLeaderboard(this.getVehicles());
+    if (this.cpuAdaptiveTickMs >= CPU_ADAPTIVE_TICK_MS) {
+      this.cpuAdaptiveTickMs = 0;
+      this.updateCpuAdaptiveBias();
+    }
     this.updatePlayerRankFeedback();
 
     if (newlyFinished.length > 0) {
@@ -426,6 +466,7 @@ export class RaceManager {
     this.speedHypeCooldownMs = 0;
     this.driftBoostHypeCooldownMs = 0;
     this.resetComboState();
+    this.resetOverdriveState();
     this.countdown.stop();
     this.lapTracker = new LapTracker(this.options.track, this.options.config.laps);
 
@@ -450,6 +491,8 @@ export class RaceManager {
 
     this.leaderboard = this.positionSystem.computeLeaderboard(this.getVehicles());
     this.playerLastRank = this.leaderboard.find((entry) => entry.isPlayer)?.rank ?? null;
+    this.cpuAdaptiveBias = 0;
+    this.cpuAdaptiveTickMs = 0;
   }
 
   private respawnVehicle(state: VehicleState): void {
@@ -544,11 +587,19 @@ export class RaceManager {
 
   private triggerOutOfBounds(state: VehicleState, reason: OutOfBoundsReason): void {
     if (!state.isPlayer || state.outOfBoundsState !== 'none') return;
+    const overdriveWasActive = this.overdriveState === 'active';
+    if (overdriveWasActive) {
+      this.failOverdrive(reason, false);
+    }
     state.outOfBoundsState = 'exploding';
     state.outOfBoundsRespawnMs = OOB_RESPAWN_DELAY_MS;
     this.resetVehicleKinematics(state);
     this.breakCombo('oob');
-    const label = reason === 'wall-contact' ? '壁に接触! 2秒後に復帰' : '場外! 2秒後に復帰';
+    const label = overdriveWasActive
+      ? 'OVERHEAT! 2秒後に復帰'
+      : reason === 'wall-contact'
+        ? '壁に接触! 2秒後に復帰'
+        : '場外! 2秒後に復帰';
     this.setMessage(label, 1200, 'warn');
     this.options.eventBus.emit('car:oob', {
       vehicleId: state.id,
@@ -735,6 +786,22 @@ export class RaceManager {
     this.comboStraightMs = 0;
   }
 
+  private resetOverdriveState(): void {
+    this.overdriveState = 'idle';
+    this.overdriveMeter01 = 0;
+    this.overdriveActiveMs = 0;
+    this.overdrivePenaltyMs = 0;
+    this.overdriveSpeedMultiplier = 1;
+  }
+
+  private getPlayerRaceSpeedMultiplier(state: VehicleState): number {
+    const overdriveMultiplier = this.getPlayerOverdriveSpeedMultiplier();
+    if (overdriveMultiplier < 1) {
+      return overdriveMultiplier;
+    }
+    return this.getPlayerComboSpeedMultiplier(state) * overdriveMultiplier;
+  }
+
   private getPlayerComboSpeedMultiplier(state: VehicleState): number {
     if (!state.isPlayer) return 1;
     if (this.comboLevel <= 0) return 1;
@@ -744,6 +811,126 @@ export class RaceManager {
     const sourceBonus = this.comboSource === 'drift' ? 0.018 : this.comboSource === 'straight' ? 0.01 : 0;
     const totalBonus = Math.min(0.16, levelBonus + sourceBonus);
     return 1 + totalBonus;
+  }
+
+  private getPlayerOverdriveSpeedMultiplier(): number {
+    if (this.overdrivePenaltyMs > 0) return OVERDRIVE_PENALTY_SPEED_MULTIPLIER;
+    if (this.overdriveState === 'active') return this.overdriveSpeedMultiplier;
+    return 1;
+  }
+
+  private updateOverdriveRuntime(dtSec: number): void {
+    const dtMs = dtSec * 1000;
+    if (this.overdriveState === 'active') {
+      this.overdriveActiveMs = Math.max(0, this.overdriveActiveMs - dtMs);
+      if (this.overdriveActiveMs <= 0) {
+        this.overdriveState = this.overdrivePenaltyMs > 0 ? 'overheated' : 'idle';
+        this.overdriveSpeedMultiplier = 1;
+      }
+    }
+
+    if (this.overdrivePenaltyMs > 0) {
+      const prev = this.overdrivePenaltyMs;
+      this.overdrivePenaltyMs = Math.max(0, this.overdrivePenaltyMs - dtMs);
+      this.overdriveState = 'overheated';
+      if (prev > 0 && this.overdrivePenaltyMs <= 0) {
+        this.overdriveState = 'idle';
+        this.overdriveSpeedMultiplier = 1;
+        this.setMessage('BOOST READY', 700, 'info');
+      }
+    }
+  }
+
+  private tryActivateOverdrive(boostPressed: boolean): void {
+    if (!boostPressed) return;
+    if (this.phase !== 'racing') return;
+    if (this.overdriveState === 'active') return;
+    if (this.overdrivePenaltyMs > 0) return;
+    if (this.overdriveMeter01 < OVERDRIVE_MIN_METER) return;
+
+    const spent = this.overdriveMeter01;
+    this.overdriveMeter01 = 0;
+    this.overdriveState = 'active';
+    this.overdriveActiveMs = OVERDRIVE_MIN_DURATION_MS + spent * (OVERDRIVE_MAX_DURATION_MS - OVERDRIVE_MIN_DURATION_MS);
+    this.overdriveSpeedMultiplier =
+      OVERDRIVE_MIN_SPEED_MULTIPLIER + spent * (OVERDRIVE_MAX_SPEED_MULTIPLIER - OVERDRIVE_MIN_SPEED_MULTIPLIER);
+    this.setMessage('OVERDRIVE!', 760, 'hype');
+    this.options.eventBus.emit('race:overdriveStart', {
+      atMs: this.elapsedMs,
+      meterSpent: spent,
+      durationMs: this.overdriveActiveMs,
+    });
+  }
+
+  private failOverdrive(reason: 'collision' | OutOfBoundsReason, showMessage = true): void {
+    if (this.overdriveState !== 'active') return;
+    this.overdriveState = 'overheated';
+    this.overdriveActiveMs = 0;
+    this.overdrivePenaltyMs = OVERDRIVE_PENALTY_MS;
+    this.overdriveSpeedMultiplier = 1;
+    this.overdriveMeter01 = 0;
+    this.breakCombo('hit');
+    if (showMessage) {
+      this.setMessage('OVERHEAT!', 820, 'warn');
+    }
+    this.options.eventBus.emit('race:overdriveFail', {
+      atMs: this.elapsedMs,
+      reason,
+    });
+  }
+
+  private updateOverdriveMeter(state: VehicleState, sample: TrackSample, dtSec: number): void {
+    if (!state.isPlayer) return;
+    if (this.overdriveState === 'active' || this.overdrivePenaltyMs > 0) return;
+    if (state.outOfBoundsState !== 'none') return;
+
+    const speedKmh = Math.abs(state.speedForward) * 3.6;
+    const drifting = speedKmh > 65 && (state.driftActive || state.slipRatio > 0.28);
+    const wallRatio = sample.distance / Math.max(0.001, this.getPlayerWallLimit(sample));
+    const wallRisk = wallRatio >= 0.82;
+
+    let delta = 0;
+    if (drifting) {
+      delta += OVERDRIVE_DRIFT_GAIN_PER_SEC * dtSec;
+    }
+    if (wallRisk) {
+      delta += OVERDRIVE_WALL_GAIN_PER_SEC * dtSec;
+    }
+
+    if (delta > 0) {
+      this.overdriveMeter01 = clamp(this.overdriveMeter01 + delta, 0, 1);
+      return;
+    }
+
+    this.overdriveMeter01 = Math.max(0, this.overdriveMeter01 - OVERDRIVE_IDLE_DECAY_PER_SEC * dtSec);
+  }
+
+  private addOverdriveMeter(amount01: number): void {
+    if (this.overdriveState === 'active' || this.overdrivePenaltyMs > 0) return;
+    this.overdriveMeter01 = clamp(this.overdriveMeter01 + amount01, 0, 1);
+  }
+
+  private updateCpuAdaptiveBias(): void {
+    const player = this.getPlayerVehicle();
+    const playerEntry = this.leaderboard.find((entry) => entry.isPlayer);
+    if (!playerEntry) return;
+
+    const total = this.leaderboard.length;
+    const rankNorm = total <= 1 ? 0 : (playerEntry.rank - 1) / (total - 1);
+    let target = 0;
+    if (rankNorm <= 0.15) {
+      target += 0.05;
+    } else if (rankNorm >= 0.75) {
+      target -= 0.045;
+    }
+
+    const leader = this.leaderboard[0];
+    const playerProgress = player.progressMetric;
+    const leaderProgress = leader?.progressMetric ?? playerProgress;
+    const progressGap = leaderProgress - playerProgress;
+    target += clamp(progressGap * -0.0045, -0.03, 0.03);
+    target = clamp(target, -0.06, 0.08);
+    this.cpuAdaptiveBias = clamp(this.cpuAdaptiveBias + (target - this.cpuAdaptiveBias) * 0.18, -0.06, 0.08);
   }
 
   private updatePlayerRankFeedback(): void {
@@ -763,6 +950,7 @@ export class RaceManager {
     }
 
     if (playerRank < previousRank) {
+      this.addOverdriveMeter(OVERDRIVE_OVERTAKE_BONUS);
       this.setMessage(`オーバーテイク! ${playerRank}位`, 900, 'hype');
     } else {
       this.setMessage(`${playerRank}位に後退… 取り返そう`, 900, 'warn');

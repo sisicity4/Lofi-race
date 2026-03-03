@@ -42,15 +42,68 @@ test.describe('mobile', () => {
 
     const joystick = page.locator('#touchSteerZone');
     const speedDial = page.locator('#speedDial');
+    const overdriveHud = page.locator('#overdriveHud');
 
     await expect(joystick).toBeVisible();
+    await expect(page.getByRole('button', { name: 'BOOST' })).toBeVisible();
     await expect(page.getByRole('button', { name: '◀' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '▶' })).toHaveCount(0);
     await expect(speedDial).toBeVisible();
+    await expect(overdriveHud).toBeVisible();
 
     const box = await speedDial.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThan(844 * 0.55);
     expect(box!.y).toBeLessThan(390 * 0.4);
+  });
+
+  test('auto pauses on portrait mid-race and resumes after landscape restore', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'レース開始' }).click();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByText('横画面でプレイしてください')).toBeVisible();
+    await expect(page.locator('#pausePanel')).toBeVisible();
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+    await expect(page.locator('#pausePanel')).toBeHidden();
+  });
+});
+
+test.describe('mobile portrait title flow', () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  test('keeps title usable, blocks start, and shows landscape assist', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+
+    const startButton = page.locator('#startButton');
+    const assistButton = page.locator('#assistLandscapeButton');
+
+    await expect(startButton).toBeVisible();
+    await expect(startButton).toBeDisabled();
+    await expect(startButton).toHaveText('横画面で開始');
+    await expect(assistButton).toBeVisible();
+    await expect(page.locator('#trackSelect')).toBeEnabled();
+  });
+
+  test('enables start after rotating back to landscape', async ({ page }) => {
+    await page.goto('/');
+
+    const startButton = page.locator('#startButton');
+    await expect(startButton).toBeDisabled();
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(startButton).toBeEnabled();
+    await expect(startButton).toHaveText('レース開始');
+    await startButton.click();
+
+    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
   });
 });

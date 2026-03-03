@@ -26,6 +26,9 @@ export class HudView {
   private readonly touchControls: HTMLDivElement;
   private readonly mobileBanner: HTMLDivElement;
   private readonly speedDialEl: HTMLDivElement;
+  private readonly overdriveHudEl: HTMLDivElement;
+  private readonly overdriveStateEl: HTMLSpanElement;
+  private readonly overdriveFillEl: HTMLSpanElement;
   private readonly comboBadgeEl: HTMLDivElement;
   private readonly comboValueEl: HTMLSpanElement;
   private readonly comboFillEl: HTMLSpanElement;
@@ -93,6 +96,13 @@ export class HudView {
         <div class="speed-value" id="hudSpeed">0</div>
         <div class="speed-unit">km/h</div>
       </div>
+      <div class="overdrive-hud panel" id="overdriveHud" data-state="idle">
+        <div class="overdrive-head">
+          <span class="mini-label">OD</span>
+          <span id="overdriveState">CHARGE</span>
+        </div>
+        <div class="overdrive-meter"><span id="overdriveFill"></span></div>
+      </div>
       <div id="comboBadge" class="combo-badge hidden" data-source="none">
         <div class="combo-head"><span>COMBO</span><span id="comboValue">x0</span></div>
         <div class="combo-meter"><span id="comboFill"></span></div>
@@ -136,6 +146,9 @@ export class HudView {
     this.touchControls = this.root.querySelector('#touchControls') as HTMLDivElement;
     this.mobileBanner = this.root.querySelector('#mobileBanner') as HTMLDivElement;
     this.speedDialEl = this.root.querySelector('#speedDial') as HTMLDivElement;
+    this.overdriveHudEl = this.root.querySelector('#overdriveHud') as HTMLDivElement;
+    this.overdriveStateEl = this.root.querySelector('#overdriveState') as HTMLSpanElement;
+    this.overdriveFillEl = this.root.querySelector('#overdriveFill') as HTMLSpanElement;
     this.comboBadgeEl = this.root.querySelector('#comboBadge') as HTMLDivElement;
     this.comboValueEl = this.root.querySelector('#comboValue') as HTMLSpanElement;
     this.comboFillEl = this.root.querySelector('#comboFill') as HTMLSpanElement;
@@ -182,6 +195,9 @@ export class HudView {
       this.comboValueEl.textContent = 'x0';
       this.comboFillEl.style.transform = 'scaleX(0)';
       this.comboBadgeEl.dataset.source = 'none';
+      this.overdriveHudEl.dataset.state = 'idle';
+      this.overdriveStateEl.textContent = 'CHARGE';
+      this.overdriveFillEl.style.transform = 'scaleX(0)';
     }
   }
 
@@ -262,6 +278,19 @@ export class HudView {
     this.comboFillEl.style.transform = `scaleX(${Math.max(0, Math.min(1, snapshot.race.comboMeter01))})`;
     this.comboBadgeEl.dataset.source = snapshot.race.comboSource;
 
+    const overdriveMeter = Math.max(0, Math.min(1, snapshot.race.overdriveMeter01));
+    this.overdriveFillEl.style.transform = `scaleX(${overdriveMeter})`;
+    this.overdriveHudEl.dataset.state = snapshot.race.overdriveState;
+    if (snapshot.race.overdriveState === 'active') {
+      this.overdriveStateEl.textContent = 'OD ON';
+    } else if (snapshot.race.overdriveState === 'overheated') {
+      this.overdriveStateEl.textContent = 'OVERHEAT';
+    } else if (overdriveMeter >= 0.35) {
+      this.overdriveStateEl.textContent = 'READY';
+    } else {
+      this.overdriveStateEl.textContent = 'CHARGE';
+    }
+
     if (playerEntry && this.lastPlayerRank !== null && playerEntry.rank !== this.lastPlayerRank) {
       this.flash(playerEntry.rank < this.lastPlayerRank ? 'overtake' : 'warn');
     }
@@ -327,6 +356,7 @@ export class HudView {
     rightCluster.append(makeBtn('throttle', 'GO', 'primary touch-main'));
     rightCluster.append(makeBtn('brake', 'BRAKE', 'touch-secondary'));
     rightCluster.append(makeBtn('handbrake', 'DRIFT', 'large touch-drift'));
+    rightCluster.append(makeBtn('boost', 'BOOST', 'small touch-boost'));
 
     this.touchControls.append(leftCluster, rightCluster);
   }

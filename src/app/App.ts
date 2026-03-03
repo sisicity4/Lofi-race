@@ -21,6 +21,7 @@ const ZERO_INPUT: InputState = {
   brake: 0,
   steer: 0,
   handbrake: false,
+  boost: false,
   pause: false,
   mute: false,
 };
@@ -31,6 +32,8 @@ interface TransientFx {
   lifeMs: number;
   update: (dtSec: number, ageMs: number, lifeMs: number) => void;
 }
+
+type LandscapeAssistResult = 'not-mobile' | 'unsupported' | 'attempted' | 'failed';
 
 export class App {
   private readonly shell: HTMLDivElement;
@@ -67,6 +70,7 @@ export class App {
   private rafResizePending = false;
   private lastFeedbackKey = '';
   private portraitPauseApplied = false;
+  private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
 
   constructor(private readonly root: HTMLElement) {
@@ -159,7 +163,6 @@ export class App {
         render: (_alpha, frameDtSec) => this.render(frameDtSec),
       });
       this.loop.start();
-      this.menuView.setStatus('準備OK');
     } catch (error) {
       console.error(error);
       this.menuView.setError('ゲーム初期化に失敗しました。ページ再読み込みを試してください。');
@@ -173,6 +176,10 @@ export class App {
       onStart: () => {
         this.playUiClick('primary');
         void this.handleStartRace();
+      },
+      onAssistLandscape: () => {
+        this.playUiClick('secondary');
+        void this.handleAssistLandscape();
       },
       onTrackChange: (trackId) => {
         this.playUiClick('secondary');
@@ -232,6 +239,16 @@ export class App {
 
     this.eventBus.on('race:start', () => {
       // GO sound is already emitted via countdown tick label to avoid double-triggering.
+    });
+
+    this.eventBus.on('race:overdriveStart', () => {
+      this.audio.playOverdriveStart();
+      this.hudView.flash('go');
+    });
+
+    this.eventBus.on('race:overdriveFail', () => {
+      this.audio.playOverdriveFail();
+      this.hudView.flash('warn');
     });
 
     this.eventBus.on('car:collision', ({ a, b, impulse }) => {
@@ -323,7 +340,6 @@ export class App {
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
-    this.menuView.setStatus('準備OK');
     this.input.clearAll();
     this.clearTransientFx();
     this.lastFeedbackKey = '';
@@ -407,10 +423,10 @@ export class App {
       this.hudView.setVisible(false);
       this.rebuildRaceForTrack(nextTrack);
       this.persistSettings();
-      this.menuView.setStatus('準備OK');
     } catch (error) {
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
+      this.lastMenuPortraitBlocked = this.isPortraitBlockedOnTouchDevice();
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
       this.menuView.setLoading(false);
@@ -788,11 +804,27 @@ export class App {
   }
 
   private refreshOrientationGuard(): void {
-    const blocked = this.isPortraitBlockedOnTouchDevice();
-    this.orientationGateEl.classList.toggle('hidden', !blocked);
-    this.shell.classList.toggle('orientation-blocked', blocked);
-    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI() && !blocked);
-    if (!blocked) {
+    const isPortraitOnTouch = this.isPortraitBlockedOnTouchDevice();
+    const phase = this.raceManager?.getPhase() ?? 'menu';
+    const isRacePhase = phase !== 'menu';
+    const showOrientationGate = isPortraitOnTouch && isRacePhase;
+
+    this.orientationGateEl.classList.toggle('hidden', !showOrientationGate);
+    this.shell.classList.toggle('orientation-blocked', showOrientationGate);
+    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI() && !isPortraitOnTouch);
+
+    if (phase === 'menu') {
+      this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI());
+      this.menuView.setPortraitStartBlocked(isPortraitOnTouch);
+      if (this.lastMenuPortraitBlocked !== isPortraitOnTouch) {
+        this.menuView.setStatus(isPortraitOnTouch ? '横画面で開始できます / 設定はこのままでOK' : '準備OK');
+        this.lastMenuPortraitBlocked = isPortraitOnTouch;
+      }
+    } else {
+      this.lastMenuPortraitBlocked = null;
+    }
+
+    if (!showOrientationGate) {
       this.orientationGateHint.textContent = '対応端末では横画面ロックを試行します。';
     }
   }
@@ -817,8 +849,31 @@ export class App {
     this.portraitPauseApplied = false;
   }
 
-  private async tryForceLandscape(fromUserGesture: boolean): Promise<void> {
-    if (!this.shouldUseMobileTouchUI()) return;
+  private async handleAssistLandscape(): Promise<void> {
+    const result = await this.tryForceLandscape(true);
+    if (!this.isPortraitBlockedOnTouchDevice()) {
+      this.menuView.setStatus('準備OK');
+      this.lastMenuPortraitBlocked = false;
+      return;
+    }
+    if (result === 'unsupported') {
+      this.menuView.setStatus('このブラウザは自動横画面ロック非対応です');
+      this.lastMenuPortraitBlocked = true;
+      return;
+    }
+    if (result === 'failed') {
+      this.menuView.setStatus('横画面ロックに失敗しました');
+      this.lastMenuPortraitBlocked = true;
+      return;
+    }
+    if (result === 'attempted') {
+      this.menuView.setStatus('横画面ロックを試行しました');
+      this.lastMenuPortraitBlocked = true;
+    }
+  }
+
+  private async tryForceLandscape(fromUserGesture: boolean): Promise<LandscapeAssistResult> {
+    if (!this.shouldUseMobileTouchUI()) return 'not-mobile';
 
     const orientationApi = (typeof screen !== 'undefined'
       ? (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
@@ -839,7 +894,7 @@ export class App {
     if (!supportsOrientationLock) {
       this.orientationGateHint.textContent = 'このブラウザは自動横画面ロックに未対応です。端末を横向きにしてください。';
       this.refreshOrientationGuard();
-      return;
+      return 'unsupported';
     }
 
     try {
@@ -847,8 +902,10 @@ export class App {
         await lockOrientation?.call(orientationApi, 'landscape');
       }
       this.orientationGateHint.textContent = '横画面ロックを試行しました。反映されない場合は端末を横向きにしてください。';
+      return 'attempted';
     } catch {
       this.orientationGateHint.textContent = '自動横画面ロックに失敗しました。端末を横向きにしてください。';
+      return 'failed';
     } finally {
       this.refreshOrientationGuard();
     }

@@ -148,6 +148,19 @@ export class AudioManager {
     this.beep(260, 0.07, 'sawtooth', 0.05);
   }
 
+  playOverdriveStart(): void {
+    if (!this.ctx) return;
+    this.beep(820, 0.06, 'triangle', 0.05);
+    this.beep(1120, 0.08, 'square', 0.045, 0.04);
+    this.beep(1480, 0.1, 'sine', 0.04, 0.08);
+  }
+
+  playOverdriveFail(): void {
+    if (!this.ctx) return;
+    this.beep(230, 0.08, 'sawtooth', 0.05);
+    this.beep(170, 0.1, 'square', 0.045, 0.03);
+  }
+
   playUiClick(tone: UiClickTone = 'secondary'): void {
     if (this.muted) return;
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();

@@ -8,6 +8,7 @@ export type UiMessageTone = 'info' | 'hype' | 'warn' | 'result';
 export type ComboSource = 'none' | 'drift' | 'straight';
 export type OutOfBoundsState = 'none' | 'exploding' | 'respawning';
 export type OutOfBoundsReason = 'wall-contact' | 'fell-off';
+export type OverdriveState = 'idle' | 'active' | 'overheated';
 
 export interface GameConfig {
   laps: number;
@@ -78,6 +79,7 @@ export interface InputState {
   brake: number;
   steer: number;
   handbrake: boolean;
+  boost: boolean;
   pause: boolean;
   mute: boolean;
 }
@@ -139,6 +141,12 @@ export interface RaceState {
   comboMeter01: number;
   comboSource: ComboSource;
   comboSpeedMultiplier: number;
+  overdriveState: OverdriveState;
+  overdriveMeter01: number;
+  overdriveActiveMs: number;
+  overdrivePenaltyMs: number;
+  overdriveSpeedMultiplier: number;
+  cpuAdaptiveBias: number;
 }
 
 export interface TrackSample {

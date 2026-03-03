@@ -56,6 +56,7 @@ export class CpuDriver {
       brake,
       steer,
       handbrake,
+      boost: false,
       pause: false,
       mute: false,
     };

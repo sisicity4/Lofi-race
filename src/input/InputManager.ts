@@ -1,7 +1,7 @@
 import { clamp } from '../core/math';
 import type { InputState } from '../types/game';
 
-export type TouchAction = 'left' | 'right' | 'throttle' | 'brake' | 'handbrake' | 'pause' | 'mute';
+export type TouchAction = 'left' | 'right' | 'throttle' | 'brake' | 'handbrake' | 'boost' | 'pause' | 'mute';
 
 interface ButtonBinding {
   element: HTMLElement;
@@ -16,10 +16,11 @@ export class InputManager {
     throttle: false,
     brake: false,
     handbrake: false,
+    boost: false,
     pause: false,
     mute: false,
   };
-  private oneShot: Pick<InputState, 'pause' | 'mute'> = { pause: false, mute: false };
+  private oneShot: Pick<InputState, 'pause' | 'mute' | 'boost'> = { pause: false, mute: false, boost: false };
   private bindings: ButtonBinding[] = [];
   private attached = false;
   private touchSteerAxis = 0;
@@ -29,12 +30,27 @@ export class InputManager {
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const code = event.code;
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Escape', 'KeyM'].includes(code)) {
+    if ([
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'Space',
+      'ShiftLeft',
+      'ShiftRight',
+      'KeyW',
+      'KeyA',
+      'KeyS',
+      'KeyD',
+      'Escape',
+      'KeyM',
+    ].includes(code)) {
       event.preventDefault();
     }
     this.keyDown.add(code);
-    if (code === 'Escape') this.oneShot.pause = true;
-    if (code === 'KeyM') this.oneShot.mute = true;
+    if (code === 'Escape' && !event.repeat) this.oneShot.pause = true;
+    if (code === 'KeyM' && !event.repeat) this.oneShot.mute = true;
+    if ((code === 'ShiftLeft' || code === 'ShiftRight') && !event.repeat) this.oneShot.boost = true;
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
@@ -71,11 +87,12 @@ export class InputManager {
       brake: brakeKey || this.touchActive.brake ? 1 : 0,
       steer,
       handbrake: handbrakeKey || this.touchActive.handbrake,
+      boost: this.oneShot.boost,
       pause: this.oneShot.pause,
       mute: this.oneShot.mute,
     };
 
-    this.oneShot = { pause: false, mute: false };
+    this.oneShot = { pause: false, mute: false, boost: false };
     return snapshot;
   }
 
@@ -84,7 +101,7 @@ export class InputManager {
   }
 
   setTouchAction(action: TouchAction, active: boolean): void {
-    if (action === 'pause' || action === 'mute') {
+    if (action === 'pause' || action === 'mute' || action === 'boost') {
       if (active) {
         this.oneShot[action] = true;
       }
@@ -199,7 +216,7 @@ export class InputManager {
     for (const key of Object.keys(this.touchActive) as TouchAction[]) {
       this.touchActive[key] = false;
     }
-    this.oneShot = { pause: false, mute: false };
+    this.oneShot = { pause: false, mute: false, boost: false };
     this.touchSteerAxis = 0;
     this.joystickPointerId = null;
     for (const binding of this.bindings) {
