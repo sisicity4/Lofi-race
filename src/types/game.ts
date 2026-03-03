@@ -5,8 +5,10 @@ export type LanguageCode = 'ja';
 export type SurfaceKind = 'road' | 'grass' | 'sand';
 export type RacePhase = 'menu' | 'countdown' | 'racing' | 'finished' | 'paused';
 export type UiMessageTone = 'info' | 'hype' | 'warn' | 'result';
+export type ComboSource = 'none' | 'drift' | 'straight';
 export type OutOfBoundsState = 'none' | 'exploding' | 'respawning';
 export type OutOfBoundsReason = 'wall-contact' | 'fell-off';
+export type OverdriveState = 'idle' | 'active' | 'overheated';
 
 export interface GameConfig {
   laps: number;
@@ -41,9 +43,11 @@ export interface SurfaceZone {
   polygon: [number, number][];
 }
 
+export type TrackTheme = 'coastal' | 'raceway' | 'desert' | 'forest' | 'studio';
+
 export interface TrackDefinition {
   id: string;
-  theme: 'coastal';
+  theme: TrackTheme;
   startGrid: StartGridSlot[];
   waypoints: Waypoint[];
   checkpoints: Checkpoint[];
@@ -75,6 +79,7 @@ export interface InputState {
   brake: number;
   steer: number;
   handbrake: boolean;
+  boost: boolean;
   pause: boolean;
   mute: boolean;
 }
@@ -131,6 +136,17 @@ export interface RaceState {
   leaderboard: LeaderboardEntry[];
   bestLapMs: number | null;
   currentLapMs: number;
+  comboLevel: number;
+  maxCombo: number;
+  comboMeter01: number;
+  comboSource: ComboSource;
+  comboSpeedMultiplier: number;
+  overdriveState: OverdriveState;
+  overdriveMeter01: number;
+  overdriveActiveMs: number;
+  overdrivePenaltyMs: number;
+  overdriveSpeedMultiplier: number;
+  cpuAdaptiveBias: number;
 }
 
 export interface TrackSample {

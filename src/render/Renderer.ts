@@ -26,7 +26,8 @@ export class Renderer {
     this.renderer.setClearColor(0x8fd8ff, 1);
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(0xbfeeff, 65, 210);
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 320);
+    // Slightly tighter depth range improves precision and reduces z-fighting flicker.
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.35, 300);
     this.camera.position.set(0, 8, -12);
   }
 

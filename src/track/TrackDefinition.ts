@@ -3,6 +3,7 @@ export type {
   StartGridSlot,
   SurfaceZone,
   SurfaceKind,
+  TrackTheme,
   TrackDefinition,
   Waypoint,
 } from '../types/game';

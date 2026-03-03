@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { AudioManager } from '../audio/AudioManager';
+import { AudioManager, type UiClickTone } from '../audio/AudioManager';
 import { EventBus } from '../core/EventBus';
 import { GameLoop } from '../core/GameLoop';
-import { DEFAULT_GAME_CONFIG, DEFAULT_VEHICLE_PARAMS } from '../data/config';
+import { DEFAULT_GAME_CONFIG, getVehicleParamsForTheme } from '../data/config';
 import { SettingsStore } from '../data/SettingsStore';
 import type { GameEvents } from '../game/GameState';
 import { RaceManager } from '../game/RaceManager';
@@ -21,6 +21,7 @@ const ZERO_INPUT: InputState = {
   brake: 0,
   steer: 0,
   handbrake: false,
+  boost: false,
   pause: false,
   mute: false,
 };
@@ -31,6 +32,14 @@ interface TransientFx {
   lifeMs: number;
   update: (dtSec: number, ageMs: number, lifeMs: number) => void;
 }
+
+interface CarDriftFxRefs {
+  driftFxLeft?: THREE.Mesh;
+  driftFxRight?: THREE.Mesh;
+  driftFxMaterial?: THREE.MeshBasicMaterial;
+}
+
+type LandscapeAssistResult = 'not-mobile' | 'unsupported' | 'attempted' | 'failed';
 
 export class App {
   private readonly shell: HTMLDivElement;
@@ -60,11 +69,14 @@ export class App {
   private carMeshes = new Map<string, THREE.Group>();
   private nextCheckpointBeacon: THREE.Group | null = null;
   private activeFx: TransientFx[] = [];
+  private shadowFlowGroups: THREE.Object3D[] = [];
+  private shadowFlowTimeSec = 0;
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
   private lastFeedbackKey = '';
   private portraitPauseApplied = false;
+  private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
 
   constructor(private readonly root: HTMLElement) {
@@ -104,6 +116,7 @@ export class App {
     this.orientationGateButton = this.orientationGateEl.querySelector('#orientationGateButton') as HTMLButtonElement;
     this.orientationGateHint = this.orientationGateEl.querySelector('#orientationGateHint') as HTMLParagraphElement;
     this.orientationGateButton.addEventListener('click', () => {
+      this.playUiClick('secondary');
       void this.tryForceLandscape(true);
     });
 
@@ -149,13 +162,13 @@ export class App {
       this.hudView.setVisible(false);
       this.menuView.setVisible(true);
       this.resultView.hide();
+      this.audio.setPaused(true);
 
       this.loop = new GameLoop(DEFAULT_GAME_CONFIG.fixedStepHz, {
         fixedUpdate: (dtSec) => this.fixedUpdate(dtSec),
         render: (_alpha, frameDtSec) => this.render(frameDtSec),
       });
       this.loop.start();
-      this.menuView.setStatus(`準備完了。${this.getTrackLabel(this.selectedTrackId)} でプレイできます。`);
     } catch (error) {
       console.error(error);
       this.menuView.setError('ゲーム初期化に失敗しました。ページ再読み込みを試してください。');
@@ -166,24 +179,59 @@ export class App {
 
   private bindViews(): void {
     this.menuView.bind({
-      onStart: () => this.handleStartRace(),
+      onStart: () => {
+        this.playUiClick('primary');
+        void this.handleStartRace();
+      },
+      onAssistLandscape: () => {
+        this.playUiClick('secondary');
+        void this.handleAssistLandscape();
+      },
       onTrackChange: (trackId) => {
+        this.playUiClick('secondary');
         void this.handleTrackChange(trackId);
       },
-      onQualityChange: (quality) => this.applyGraphicsQuality(quality),
-      onMuteToggle: () => this.toggleMute(),
+      onQualityChange: (quality) => {
+        this.playUiClick('secondary');
+        this.applyGraphicsQuality(quality);
+      },
+      onMuteToggle: () => {
+        const wasMuted = this.audio.isMuted();
+        if (!wasMuted) {
+          this.playUiClick('toggle');
+        }
+        this.toggleMute();
+        if (wasMuted) {
+          this.playUiClick('toggle');
+        }
+      },
       onVolumeChange: (volume) => this.setMasterVolume(volume),
     });
 
     this.hudView.bind({
-      onPauseButton: () => this.raceManager?.togglePause(),
-      onResumeButton: () => this.raceManager?.togglePause(),
-      onTitleButton: () => this.returnToTitle(),
+      onPauseButton: () => {
+        this.playUiClick('secondary');
+        this.raceManager?.togglePause();
+      },
+      onResumeButton: () => {
+        this.playUiClick('primary');
+        this.raceManager?.togglePause();
+      },
+      onTitleButton: () => {
+        this.playUiClick('secondary');
+        this.returnToTitle();
+      },
     });
 
     this.resultView.bind({
-      onRetry: () => this.handleStartRace(true),
-      onBackToTitle: () => this.returnToTitle(),
+      onRetry: () => {
+        this.playUiClick('primary');
+        void this.handleStartRace(true);
+      },
+      onBackToTitle: () => {
+        this.playUiClick('secondary');
+        this.returnToTitle();
+      },
     });
   }
 
@@ -197,6 +245,16 @@ export class App {
 
     this.eventBus.on('race:start', () => {
       // GO sound is already emitted via countdown tick label to avoid double-triggering.
+    });
+
+    this.eventBus.on('race:overdriveStart', () => {
+      this.audio.playOverdriveStart();
+      this.hudView.flash('go');
+    });
+
+    this.eventBus.on('race:overdriveFail', () => {
+      this.audio.playOverdriveFail();
+      this.hudView.flash('warn');
     });
 
     this.eventBus.on('car:collision', ({ a, b, impulse }) => {
@@ -284,11 +342,10 @@ export class App {
   private returnToTitle(): void {
     if (!this.raceManager) return;
     this.raceManager.returnToMenu();
-    this.audio.setPaused(false);
+    this.audio.setPaused(true);
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
-    this.menuView.setStatus('タイトルに戻りました。');
     this.input.clearAll();
     this.clearTransientFx();
     this.lastFeedbackKey = '';
@@ -339,12 +396,13 @@ export class App {
     this.settings.trackId = this.selectedTrackId;
 
     this.sceneBuilder.buildScene(this.renderer.scene, track);
+    this.collectShadowFlowGroups();
     this.createOrAttachNextCheckpointBeacon();
 
     this.raceManager = new RaceManager({
       track,
       config: DEFAULT_GAME_CONFIG,
-      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      vehicleParams: getVehicleParamsForTheme(track.theme),
       eventBus: this.eventBus,
       initialBestLapMs: this.settings.bestLapMs,
     });
@@ -371,10 +429,10 @@ export class App {
       this.hudView.setVisible(false);
       this.rebuildRaceForTrack(nextTrack);
       this.persistSettings();
-      this.menuView.setStatus(`${this.getTrackLabel(this.selectedTrackId)} を選択中`);
     } catch (error) {
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
+      this.lastMenuPortraitBlocked = this.isPortraitBlockedOnTouchDevice();
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
       this.menuView.setLoading(false);
@@ -387,6 +445,7 @@ export class App {
 
     this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec);
     this.updateNextCheckpointBeacon(frameDtSec);
+    this.updateShadowFlows(frameDtSec);
     this.updateTransientFx(frameDtSec);
     this.renderer.render();
 
@@ -403,6 +462,7 @@ export class App {
     if (!this.renderer || !this.raceManager) return;
     for (const mesh of this.carMeshes.values()) {
       this.renderer.scene.remove(mesh);
+      this.disposeObjectResources(mesh);
     }
     this.carMeshes.clear();
 
@@ -500,6 +560,9 @@ export class App {
 
   private syncVehicleMeshes(): void {
     if (!this.raceManager) return;
+    const nowMs = performance.now();
+    const racePhase = this.lastSnapshot?.race.phase ?? this.raceManager.getPhase();
+    const raceFxEnabled = racePhase === 'racing';
     for (const vehicle of this.raceManager.getVehicles()) {
       const mesh = this.carMeshes.get(vehicle.id);
       if (!mesh) continue;
@@ -513,6 +576,43 @@ export class App {
       if (body) {
         body.rotation.z = -vehicle.steerVisual * 0.02;
       }
+
+      const fxRefs = mesh.userData as CarDriftFxRefs;
+      const driftFxLeft = fxRefs.driftFxLeft;
+      const driftFxRight = fxRefs.driftFxRight;
+      const driftFxMaterial = fxRefs.driftFxMaterial;
+      if (!driftFxLeft || !driftFxRight || !driftFxMaterial) {
+        continue;
+      }
+
+      const speedKmh = Math.abs(vehicle.speedForward) * 3.6;
+      const drifting = !vehicle.isOffTrack && speedKmh > 32 && (vehicle.driftActive || vehicle.slipRatio > 0.24);
+      const boosting = vehicle.driftBoostMs > 0;
+      const showDriftFx = raceFxEnabled && (drifting || boosting);
+
+      if (!showDriftFx) {
+        driftFxLeft.visible = false;
+        driftFxRight.visible = false;
+        driftFxMaterial.opacity = 0;
+        continue;
+      }
+
+      const intensityRaw = vehicle.slipRatio * 0.85 + (boosting ? 0.52 + vehicle.driftBoostStrength * 0.48 : 0);
+      const intensity = Math.max(0, Math.min(1.4, intensityRaw));
+      const widthScale = 0.8 + intensity * 0.28;
+      const lengthScale = 0.75 + intensity * 1.05;
+      const pulse = 0.9 + Math.sin(nowMs * 0.012 + vehicle.position.x * 0.08 + vehicle.position.z * 0.08) * 0.1;
+      const opacity = Math.min(0.62, (0.09 + intensity * 0.3) * pulse);
+      const steerOffset = vehicle.steerVisual * 0.14;
+
+      driftFxLeft.visible = true;
+      driftFxRight.visible = true;
+      driftFxLeft.scale.set(widthScale, 1, lengthScale);
+      driftFxRight.scale.set(widthScale, 1, lengthScale);
+      driftFxLeft.rotation.y = -0.08 + steerOffset;
+      driftFxRight.rotation.y = 0.08 + steerOffset;
+      driftFxMaterial.color.setHex(boosting ? 0x9df7ff : 0x4bd9ff);
+      driftFxMaterial.opacity = opacity;
     }
   }
 
@@ -649,6 +749,47 @@ export class App {
     this.activeFx = [];
   }
 
+  private collectShadowFlowGroups(): void {
+    if (!this.renderer) {
+      this.shadowFlowGroups = [];
+      this.shadowFlowTimeSec = 0;
+      return;
+    }
+
+    this.shadowFlowGroups = [];
+    this.renderer.scene.traverse((object) => {
+      const data = object.userData as { shadowFlow?: boolean };
+      if (data.shadowFlow) {
+        this.shadowFlowGroups.push(object);
+      }
+    });
+    this.shadowFlowTimeSec = 0;
+  }
+
+  private updateShadowFlows(frameDtSec: number): void {
+    if (this.shadowFlowGroups.length === 0) return;
+    this.shadowFlowTimeSec += frameDtSec;
+
+    for (const group of this.shadowFlowGroups) {
+      const flow = group.userData as {
+        span?: number;
+        speed?: number;
+        spacing?: number;
+      };
+      const span = Math.max(1, flow.span ?? 60);
+      const speed = flow.speed ?? 22;
+      const spacing = flow.spacing ?? 6;
+
+      for (let i = 0; i < group.children.length; i += 1) {
+        const child = group.children[i];
+        const baseOffset = (child.userData as { baseOffset?: number }).baseOffset ?? i * spacing;
+        const raw = baseOffset + this.shadowFlowTimeSec * speed;
+        const wrapped = ((raw % span) + span) % span;
+        child.position.z = wrapped - span * 0.5;
+      }
+    }
+  }
+
   private applyGraphicsQuality(quality: GraphicsQuality): void {
     this.settings.graphicsQuality = quality;
     this.renderer?.applyQuality(quality);
@@ -710,11 +851,27 @@ export class App {
   }
 
   private refreshOrientationGuard(): void {
-    const blocked = this.isPortraitBlockedOnTouchDevice();
-    this.orientationGateEl.classList.toggle('hidden', !blocked);
-    this.shell.classList.toggle('orientation-blocked', blocked);
-    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI() && !blocked);
-    if (!blocked) {
+    const isPortraitOnTouch = this.isPortraitBlockedOnTouchDevice();
+    const phase = this.raceManager?.getPhase() ?? 'menu';
+    const isRacePhase = phase !== 'menu';
+    const showOrientationGate = isPortraitOnTouch && isRacePhase;
+
+    this.orientationGateEl.classList.toggle('hidden', !showOrientationGate);
+    this.shell.classList.toggle('orientation-blocked', showOrientationGate);
+    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI() && !isPortraitOnTouch);
+
+    if (phase === 'menu') {
+      this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI());
+      this.menuView.setPortraitStartBlocked(isPortraitOnTouch);
+      if (this.lastMenuPortraitBlocked !== isPortraitOnTouch) {
+        this.menuView.setStatus(isPortraitOnTouch ? '横画面で開始できます / 設定はこのままでOK' : '準備OK');
+        this.lastMenuPortraitBlocked = isPortraitOnTouch;
+      }
+    } else {
+      this.lastMenuPortraitBlocked = null;
+    }
+
+    if (!showOrientationGate) {
       this.orientationGateHint.textContent = '対応端末では横画面ロックを試行します。';
     }
   }
@@ -739,8 +896,31 @@ export class App {
     this.portraitPauseApplied = false;
   }
 
-  private async tryForceLandscape(fromUserGesture: boolean): Promise<void> {
-    if (!this.shouldUseMobileTouchUI()) return;
+  private async handleAssistLandscape(): Promise<void> {
+    const result = await this.tryForceLandscape(true);
+    if (!this.isPortraitBlockedOnTouchDevice()) {
+      this.menuView.setStatus('準備OK');
+      this.lastMenuPortraitBlocked = false;
+      return;
+    }
+    if (result === 'unsupported') {
+      this.menuView.setStatus('このブラウザは自動横画面ロック非対応です');
+      this.lastMenuPortraitBlocked = true;
+      return;
+    }
+    if (result === 'failed') {
+      this.menuView.setStatus('横画面ロックに失敗しました');
+      this.lastMenuPortraitBlocked = true;
+      return;
+    }
+    if (result === 'attempted') {
+      this.menuView.setStatus('横画面ロックを試行しました');
+      this.lastMenuPortraitBlocked = true;
+    }
+  }
+
+  private async tryForceLandscape(fromUserGesture: boolean): Promise<LandscapeAssistResult> {
+    if (!this.shouldUseMobileTouchUI()) return 'not-mobile';
 
     const orientationApi = (typeof screen !== 'undefined'
       ? (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
@@ -761,7 +941,7 @@ export class App {
     if (!supportsOrientationLock) {
       this.orientationGateHint.textContent = 'このブラウザは自動横画面ロックに未対応です。端末を横向きにしてください。';
       this.refreshOrientationGuard();
-      return;
+      return 'unsupported';
     }
 
     try {
@@ -769,8 +949,10 @@ export class App {
         await lockOrientation?.call(orientationApi, 'landscape');
       }
       this.orientationGateHint.textContent = '横画面ロックを試行しました。反映されない場合は端末を横向きにしてください。';
+      return 'attempted';
     } catch {
       this.orientationGateHint.textContent = '自動横画面ロックに失敗しました。端末を横向きにしてください。';
+      return 'failed';
     } finally {
       this.refreshOrientationGuard();
     }
@@ -778,6 +960,10 @@ export class App {
 
   private getTrackLabel(trackId: string): string {
     return this.trackCatalog.find((track) => track.id === trackId)?.label ?? trackId;
+  }
+
+  private playUiClick(tone: UiClickTone): void {
+    this.audio.playUiClick(tone);
   }
 
   private shouldUseMobileTouchUI(): boolean {

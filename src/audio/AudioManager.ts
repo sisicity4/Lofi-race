@@ -5,9 +5,15 @@ export interface AudioStateSnapshot {
   masterVolume: number;
 }
 
+export type UiClickTone = 'primary' | 'secondary' | 'toggle';
+
+const UI_CLICK_COOLDOWN_MS = 50;
+
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private gameplayGateGain: GainNode | null = null;
+  private uiGain: GainNode | null = null;
   private bgmGain: GainNode | null = null;
   private engineGain: GainNode | null = null;
   private skidGain: GainNode | null = null;
@@ -17,6 +23,7 @@ export class AudioManager {
   private paused = false;
   private masterVolume = 0.6;
   private initialized = false;
+  private lastUiClickAtMs = 0;
 
   constructor(initial: AudioStateSnapshot) {
     this.muted = initial.muted;
@@ -35,6 +42,7 @@ export class AudioManager {
       await this.ctx.resume();
     }
     this.updateMasterGain();
+    this.updateGameplayGateGain();
   }
 
   setMuted(muted: boolean): void {
@@ -44,12 +52,14 @@ export class AudioManager {
 
   setPaused(paused: boolean): void {
     this.paused = paused;
-    this.updateMasterGain();
+    this.updateGameplayGateGain();
     if (!this.ctx || !this.engineGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
     if (paused) {
-      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
-      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+      this.engineGain.gain.cancelScheduledValues(now);
+      this.skidGain.gain.cancelScheduledValues(now);
+      this.engineGain.gain.setValueAtTime(0, now);
+      this.skidGain.gain.setValueAtTime(0, now);
     }
   }
 
@@ -70,8 +80,11 @@ export class AudioManager {
     if (!this.ctx || !this.engineOsc || !this.engineGain || !this.skidGain) return;
     const now = this.ctx.currentTime;
     if (!active || this.paused) {
-      this.engineGain.gain.setTargetAtTime(0, now, 0.02);
-      this.skidGain.gain.setTargetAtTime(0, now, 0.02);
+      // Keep engine/skid channels hard-muted until race phase is actively running.
+      this.engineGain.gain.cancelScheduledValues(now);
+      this.skidGain.gain.cancelScheduledValues(now);
+      this.engineGain.gain.setValueAtTime(0, now);
+      this.skidGain.gain.setValueAtTime(0, now);
       return;
     }
     const speedNorm = clamp(Math.abs(speed) / 50, 0, 1);
@@ -135,6 +148,45 @@ export class AudioManager {
     this.beep(260, 0.07, 'sawtooth', 0.05);
   }
 
+  playOverdriveStart(): void {
+    if (!this.ctx) return;
+    this.beep(820, 0.06, 'triangle', 0.05);
+    this.beep(1120, 0.08, 'square', 0.045, 0.04);
+    this.beep(1480, 0.1, 'sine', 0.04, 0.08);
+  }
+
+  playOverdriveFail(): void {
+    if (!this.ctx) return;
+    this.beep(230, 0.08, 'sawtooth', 0.05);
+    this.beep(170, 0.1, 'square', 0.045, 0.03);
+  }
+
+  playUiClick(tone: UiClickTone = 'secondary'): void {
+    if (this.muted) return;
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (nowMs - this.lastUiClickAtMs < UI_CLICK_COOLDOWN_MS) return;
+    this.lastUiClickAtMs = nowMs;
+
+    void this.unlock()
+      .then(() => {
+        if (this.muted) return;
+        switch (tone) {
+          case 'primary':
+            this.uiBeep(900, 0.045, 'triangle', 0.055);
+            this.uiBeep(1220, 0.05, 'sine', 0.04, 0.015);
+            break;
+          case 'toggle':
+            this.uiBeep(560, 0.04, 'square', 0.045);
+            break;
+          case 'secondary':
+          default:
+            this.uiBeep(720, 0.035, 'triangle', 0.042);
+            break;
+        }
+      })
+      .catch(() => undefined);
+  }
+
   dispose(): void {
     try {
       this.skidNoiseSource?.stop();
@@ -158,19 +210,29 @@ export class AudioManager {
     master.connect(ctx.destination);
     this.masterGain = master;
 
+    const gameplayGate = ctx.createGain();
+    gameplayGate.gain.value = 1;
+    gameplayGate.connect(master);
+    this.gameplayGateGain = gameplayGate;
+
+    const uiGain = ctx.createGain();
+    uiGain.gain.value = 0.22;
+    uiGain.connect(master);
+    this.uiGain = uiGain;
+
     const bgmGain = ctx.createGain();
     bgmGain.gain.value = 0.028;
-    bgmGain.connect(master);
+    bgmGain.connect(gameplayGate);
     this.bgmGain = bgmGain;
 
     const engineGain = ctx.createGain();
-    engineGain.gain.value = 0.0001;
-    engineGain.connect(master);
+    engineGain.gain.value = 0;
+    engineGain.connect(gameplayGate);
     this.engineGain = engineGain;
 
     const skidGain = ctx.createGain();
-    skidGain.gain.value = 0.0001;
-    skidGain.connect(master);
+    skidGain.gain.value = 0;
+    skidGain.connect(gameplayGate);
     this.skidGain = skidGain;
 
     const bgmA = ctx.createOscillator();
@@ -185,7 +247,7 @@ export class AudioManager {
     const bgmBGain = ctx.createGain();
     bgmBGain.gain.value = 0.016;
     bgmB.connect(bgmBGain);
-    bgmBGain.connect(master);
+    bgmBGain.connect(gameplayGate);
     bgmB.start();
 
     const engineOsc = ctx.createOscillator();
@@ -213,16 +275,23 @@ export class AudioManager {
     this.skidNoiseSource = noiseSource;
 
     this.updateMasterGain();
+    this.updateGameplayGateGain();
   }
 
   private updateMasterGain(): void {
     if (!this.ctx || !this.masterGain) return;
-    const target = this.muted || this.paused ? 0 : this.masterVolume;
+    const target = this.muted ? 0 : this.masterVolume;
     this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.03);
   }
 
+  private updateGameplayGateGain(): void {
+    if (!this.ctx || !this.gameplayGateGain) return;
+    const target = this.paused ? 0 : 1;
+    this.gameplayGateGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.03);
+  }
+
   private beep(freq: number, durationSec: number, type: OscillatorType, gain: number, offsetSec = 0): void {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.gameplayGateGain) return;
     const now = this.ctx.currentTime + offsetSec;
     const osc = this.ctx.createOscillator();
     const amp = this.ctx.createGain();
@@ -232,7 +301,23 @@ export class AudioManager {
     amp.gain.linearRampToValueAtTime(gain, now + 0.01);
     amp.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
     osc.connect(amp);
-    amp.connect(this.masterGain);
+    amp.connect(this.gameplayGateGain);
+    osc.start(now);
+    osc.stop(now + durationSec + 0.02);
+  }
+
+  private uiBeep(freq: number, durationSec: number, type: OscillatorType, gain: number, offsetSec = 0): void {
+    if (!this.ctx || !this.uiGain) return;
+    const now = this.ctx.currentTime + offsetSec;
+    const osc = this.ctx.createOscillator();
+    const amp = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    amp.gain.setValueAtTime(0.0001, now);
+    amp.gain.linearRampToValueAtTime(gain, now + 0.008);
+    amp.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+    osc.connect(amp);
+    amp.connect(this.uiGain);
     osc.start(now);
     osc.stop(now + durationSec + 0.02);
   }

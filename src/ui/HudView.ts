@@ -26,6 +26,12 @@ export class HudView {
   private readonly touchControls: HTMLDivElement;
   private readonly mobileBanner: HTMLDivElement;
   private readonly speedDialEl: HTMLDivElement;
+  private readonly overdriveHudEl: HTMLDivElement;
+  private readonly overdriveStateEl: HTMLSpanElement;
+  private readonly overdriveFillEl: HTMLSpanElement;
+  private readonly comboBadgeEl: HTMLDivElement;
+  private readonly comboValueEl: HTMLSpanElement;
+  private readonly comboFillEl: HTMLSpanElement;
   private readonly driftBadgeEl: HTMLDivElement;
   private readonly driftLinesEl: HTMLDivElement;
   private readonly flashEl: HTMLDivElement;
@@ -36,6 +42,7 @@ export class HudView {
   private lastShownFinish = false;
   private lastCountdownLabel: string | null = null;
   private lastPlayerRank: number | null = null;
+  private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
 
   constructor(parent: HTMLElement, private readonly shell: HTMLElement) {
@@ -89,6 +96,17 @@ export class HudView {
         <div class="speed-value" id="hudSpeed">0</div>
         <div class="speed-unit">km/h</div>
       </div>
+      <div class="overdrive-hud panel" id="overdriveHud" data-state="idle">
+        <div class="overdrive-head">
+          <span class="mini-label">OD</span>
+          <span id="overdriveState">CHARGE</span>
+        </div>
+        <div class="overdrive-meter"><span id="overdriveFill"></span></div>
+      </div>
+      <div id="comboBadge" class="combo-badge hidden" data-source="none">
+        <div class="combo-head"><span>COMBO</span><span id="comboValue">x0</span></div>
+        <div class="combo-meter"><span id="comboFill"></span></div>
+      </div>
 
       <div id="driftBadge" class="drift-badge hidden">DRIFT</div>
       <div id="countdownEl" class="countdown"></div>
@@ -128,6 +146,12 @@ export class HudView {
     this.touchControls = this.root.querySelector('#touchControls') as HTMLDivElement;
     this.mobileBanner = this.root.querySelector('#mobileBanner') as HTMLDivElement;
     this.speedDialEl = this.root.querySelector('#speedDial') as HTMLDivElement;
+    this.overdriveHudEl = this.root.querySelector('#overdriveHud') as HTMLDivElement;
+    this.overdriveStateEl = this.root.querySelector('#overdriveState') as HTMLSpanElement;
+    this.overdriveFillEl = this.root.querySelector('#overdriveFill') as HTMLSpanElement;
+    this.comboBadgeEl = this.root.querySelector('#comboBadge') as HTMLDivElement;
+    this.comboValueEl = this.root.querySelector('#comboValue') as HTMLSpanElement;
+    this.comboFillEl = this.root.querySelector('#comboFill') as HTMLSpanElement;
     this.driftBadgeEl = this.root.querySelector('#driftBadge') as HTMLDivElement;
     this.driftLinesEl = this.root.querySelector('#driftLines') as HTMLDivElement;
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
@@ -163,8 +187,17 @@ export class HudView {
       this.lastShownFinish = false;
       this.lastCountdownLabel = null;
       this.lastPlayerRank = null;
+      this.lastLeaderboardKey = '';
+      this.leaderboardList.textContent = '';
       this.root.classList.remove('is-fast', 'is-drifting', 'is-boosting');
       this.driftBadgeEl.textContent = 'DRIFT';
+      this.comboBadgeEl.classList.add('hidden');
+      this.comboValueEl.textContent = 'x0';
+      this.comboFillEl.style.transform = 'scaleX(0)';
+      this.comboBadgeEl.dataset.source = 'none';
+      this.overdriveHudEl.dataset.state = 'idle';
+      this.overdriveStateEl.textContent = 'CHARGE';
+      this.overdriveFillEl.style.transform = 'scaleX(0)';
     }
   }
 
@@ -239,25 +272,30 @@ export class HudView {
     }
     this.driftBadgeEl.classList.toggle('hidden', !((drifting || boosting) && snapshot.race.phase === 'racing'));
 
+    const comboVisible = snapshot.race.phase === 'racing' && snapshot.race.comboLevel > 0;
+    this.comboBadgeEl.classList.toggle('hidden', !comboVisible);
+    this.comboValueEl.textContent = `x${snapshot.race.comboLevel}`;
+    this.comboFillEl.style.transform = `scaleX(${Math.max(0, Math.min(1, snapshot.race.comboMeter01))})`;
+    this.comboBadgeEl.dataset.source = snapshot.race.comboSource;
+
+    const overdriveMeter = Math.max(0, Math.min(1, snapshot.race.overdriveMeter01));
+    this.overdriveFillEl.style.transform = `scaleX(${overdriveMeter})`;
+    this.overdriveHudEl.dataset.state = snapshot.race.overdriveState;
+    if (snapshot.race.overdriveState === 'active') {
+      this.overdriveStateEl.textContent = 'OD ON';
+    } else if (snapshot.race.overdriveState === 'overheated') {
+      this.overdriveStateEl.textContent = 'OVERHEAT';
+    } else if (overdriveMeter >= 0.35) {
+      this.overdriveStateEl.textContent = 'READY';
+    } else {
+      this.overdriveStateEl.textContent = 'CHARGE';
+    }
+
     if (playerEntry && this.lastPlayerRank !== null && playerEntry.rank !== this.lastPlayerRank) {
       this.flash(playerEntry.rank < this.lastPlayerRank ? 'overtake' : 'warn');
     }
     this.lastPlayerRank = playerEntry?.rank ?? null;
-
-    this.leaderboardList.innerHTML = '';
-    const entries = snapshot.race.leaderboard;
-    for (const entry of entries) {
-      const li = document.createElement('li');
-      if (entry.isPlayer) li.classList.add('player');
-      const vehicle = snapshot.vehicles.find((v) => v.id === entry.vehicleId);
-      const swatch = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#fff';
-      li.innerHTML = `
-        <span class="lb-rank">${entry.rank}</span>
-        <span class="lb-name"><span class="car-swatch" style="background:${swatch}"></span>${entry.name}</span>
-        <span class="lb-lap">L${Math.min(totalLaps, entry.lap + (entry.finished ? 0 : 1))}</span>
-      `;
-      this.leaderboardList.append(li);
-    }
+    this.updateLeaderboard(snapshot, totalLaps);
 
     if (snapshot.countdown.active && snapshot.countdown.label) {
       this.countdownEl.classList.add('visible');
@@ -318,6 +356,7 @@ export class HudView {
     rightCluster.append(makeBtn('throttle', 'GO', 'primary touch-main'));
     rightCluster.append(makeBtn('brake', 'BRAKE', 'touch-secondary'));
     rightCluster.append(makeBtn('handbrake', 'DRIFT', 'large touch-drift'));
+    rightCluster.append(makeBtn('boost', 'BOOST', 'small touch-boost'));
 
     this.touchControls.append(leftCluster, rightCluster);
   }
@@ -342,5 +381,43 @@ export class HudView {
     this.flashEl.classList.remove('active');
     delete this.flashEl.dataset.kind;
     this.shell.classList.remove('victory-pulse');
+  }
+
+  private updateLeaderboard(snapshot: RaceSnapshot, totalLaps: number): void {
+    const entries = snapshot.race.leaderboard;
+    const key = entries
+      .map((entry) => `${entry.vehicleId}:${entry.rank}:${entry.lap}:${entry.finished ? 1 : 0}`)
+      .join('|');
+    if (key === this.lastLeaderboardKey) return;
+    this.lastLeaderboardKey = key;
+
+    const vehiclesById = new Map(snapshot.vehicles.map((vehicle) => [vehicle.id, vehicle]));
+    this.leaderboardList.textContent = '';
+
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      if (entry.isPlayer) li.classList.add('player');
+
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = String(entry.rank);
+
+      const name = document.createElement('span');
+      name.className = 'lb-name';
+      const swatch = document.createElement('span');
+      swatch.className = 'car-swatch';
+      const vehicle = vehiclesById.get(entry.vehicleId);
+      swatch.style.backgroundColor = vehicle ? `#${vehicle.colorHex.toString(16).padStart(6, '0')}` : '#ffffff';
+      const nameText = document.createElement('span');
+      nameText.textContent = entry.name;
+      name.append(swatch, nameText);
+
+      const lap = document.createElement('span');
+      lap.className = 'lb-lap';
+      lap.textContent = `L${Math.min(totalLaps, entry.lap + (entry.finished ? 0 : 1))}`;
+
+      li.append(rank, name, lap);
+      this.leaderboardList.append(li);
+    }
   }
 }

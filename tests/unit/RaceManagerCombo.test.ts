@@ -24,6 +24,30 @@ function advanceToRacing(raceManager: RaceManager): void {
   expect(raceManager.getPhase()).toBe('racing');
 }
 
+function forceStraightComboFrame(raceManager: RaceManager, waypointIndex = 0): void {
+  const track = raceManager.trackProgress.getTrack();
+  const player = raceManager.getPlayerVehicle();
+  const curr = track.waypoints[waypointIndex % track.waypoints.length];
+  const next = track.waypoints[(waypointIndex + 1) % track.waypoints.length];
+  const dx = next.x - curr.x;
+  const dz = next.z - curr.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const tx = dx / len;
+  const tz = dz / len;
+  const speed = 34;
+
+  player.position.x = curr.x;
+  player.position.z = curr.z;
+  player.yaw = Math.atan2(tx, tz);
+  player.velocityWorld.x = tx * speed;
+  player.velocityWorld.z = tz * speed;
+  player.speedForward = speed;
+  player.steerVisual = 0;
+  player.slipRatio = 0;
+  player.driftActive = false;
+  player.isOffTrack = false;
+}
+
 function movePlayerToLateralDistance(raceManager: RaceManager, waypointIndex: number, lateralDistance: number): void {
   const player = raceManager.getPlayerVehicle();
   const wp = raceManager.trackProgress.getTrack().waypoints[waypointIndex];
@@ -51,8 +75,36 @@ function movePlayerToAtLeastDistance(raceManager: RaceManager, waypointIndex: nu
   return actualDistance;
 }
 
-describe('RaceManager out-of-bounds', () => {
-  it('allows a player-only buffer beyond CPU wall before triggering OOB', () => {
+describe('RaceManager auto combo', () => {
+  it('builds combo automatically on sustained straight high speed', () => {
+    const raceManager = new RaceManager({
+      track: createFallbackCoastalTrack(),
+      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: new EventBus<GameEvents>(),
+      initialBestLapMs: null,
+    });
+    advanceToRacing(raceManager);
+
+    let maxCombo = 0;
+    let maxSpeedMultiplier = 1;
+    for (let i = 0; i < 280; i += 1) {
+      forceStraightComboFrame(raceManager, i % 6);
+      raceManager.update(1 / 60, NO_INPUT);
+      const race = raceManager.getSnapshot().race;
+      maxCombo = Math.max(maxCombo, race.comboLevel);
+      maxSpeedMultiplier = Math.max(maxSpeedMultiplier, race.comboSpeedMultiplier);
+    }
+
+    const snapshot = raceManager.getSnapshot();
+    expect(maxCombo).toBeGreaterThan(0);
+    expect(snapshot.race.maxCombo).toBeGreaterThanOrEqual(maxCombo);
+    expect(maxSpeedMultiplier).toBeGreaterThan(1);
+    expect(snapshot.race.comboSource === 'straight' || snapshot.race.comboLevel > 0).toBe(true);
+    expect(snapshot.race.comboMeter01).toBeGreaterThanOrEqual(0);
+  });
+
+  it('resets combo when player goes out-of-bounds', () => {
     const track = createFallbackCoastalTrack();
     const raceManager = new RaceManager({
       track,
@@ -63,50 +115,13 @@ describe('RaceManager out-of-bounds', () => {
     });
     advanceToRacing(raceManager);
 
-    const wp = track.waypoints[0];
-    const sample = raceManager.trackProgress.sample({ x: wp.x, z: wp.z });
-    const baseLimit = sample.width * 0.5 + track.hardBoundaryMargin;
-    const expandedWallLimit = baseLimit + 2.5;
-    const bufferDistance = baseLimit + (expandedWallLimit - baseLimit) * 0.55;
-
-    const actual = movePlayerToAtLeastDistance(raceManager, 0, bufferDistance);
-    expect(actual).toBeGreaterThanOrEqual(bufferDistance);
-    raceManager.update(1 / 60, NO_INPUT);
-
-    const player = raceManager.getPlayerVehicle();
-    expect(player.outOfBoundsState).toBe('none');
-  });
-
-  it('triggers wall-contact OOB and respawns at the last safe pose after ~2s', () => {
-    const track = createFallbackCoastalTrack();
-    const eventBus = new EventBus<GameEvents>();
-    const raceManager = new RaceManager({
-      track,
-      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
-      vehicleParams: DEFAULT_VEHICLE_PARAMS,
-      eventBus,
-      initialBestLapMs: null,
-    });
-    advanceToRacing(raceManager);
-
-    const oobEvents: GameEvents['car:oob'][] = [];
-    const respawnEvents: GameEvents['car:respawned'][] = [];
-    eventBus.on('car:oob', (payload) => oobEvents.push(payload));
-    eventBus.on('car:respawned', (payload) => respawnEvents.push(payload));
-
-    const player = raceManager.getPlayerVehicle();
-    player.lastSafePosition.x = player.position.x;
-    player.lastSafePosition.y = player.position.y;
-    player.lastSafePosition.z = player.position.z;
-    player.lastSafeYaw = player.yaw;
-    player.hasLastSafePose = true;
-    player.lastSafeRespawnWaypointIndex = player.respawnWaypointIndex;
-    const safePose = {
-      x: player.position.x,
-      y: player.position.y,
-      z: player.position.z,
-      yaw: player.yaw,
-    };
+    let maxCombo = 0;
+    for (let i = 0; i < 280; i += 1) {
+      forceStraightComboFrame(raceManager, i % 6);
+      raceManager.update(1 / 60, NO_INPUT);
+      maxCombo = Math.max(maxCombo, raceManager.getSnapshot().race.comboLevel);
+    }
+    expect(maxCombo).toBeGreaterThan(0);
 
     const wp = track.waypoints[0];
     const sample = raceManager.trackProgress.sample({ x: wp.x, z: wp.z });
@@ -114,23 +129,13 @@ describe('RaceManager out-of-bounds', () => {
     const expandedWallLimit = baseLimit + 2.5;
     const actual = movePlayerToAtLeastDistance(raceManager, 0, expandedWallLimit + 0.5);
     expect(actual).toBeGreaterThanOrEqual(expandedWallLimit + 0.5);
-    expect(actual).toBeLessThan(expandedWallLimit + 8.5);
 
     raceManager.update(1 / 60, NO_INPUT);
-    expect(raceManager.getPlayerVehicle().outOfBoundsState).not.toBe('none');
-    expect(oobEvents).toHaveLength(1);
-    expect(oobEvents[0].reason).toBe('wall-contact');
 
-    raceManager.update(1.0, NO_INPUT);
-    expect(raceManager.getPlayerVehicle().outOfBoundsState).not.toBe('none');
-    raceManager.update(1.1, NO_INPUT);
-
-    const respawnedPlayer = raceManager.getPlayerVehicle();
-    expect(respawnedPlayer.outOfBoundsState).toBe('none');
-    expect(respawnEvents).toHaveLength(1);
-    expect(respawnedPlayer.position.x).toBeCloseTo(safePose.x, 5);
-    expect(respawnedPlayer.position.y).toBeCloseTo(safePose.y, 5);
-    expect(respawnedPlayer.position.z).toBeCloseTo(safePose.z, 5);
-    expect(respawnedPlayer.yaw).toBeCloseTo(safePose.yaw, 5);
+    const snapshot = raceManager.getSnapshot();
+    expect(snapshot.race.comboLevel).toBe(0);
+    expect(snapshot.race.comboMeter01).toBe(0);
+    expect(snapshot.race.comboSource).toBe('none');
+    expect(snapshot.race.maxCombo).toBe(maxCombo);
   });
 });

@@ -20,34 +20,35 @@ export class CpuDriver {
     const dz = target.z - vehicle.position.z;
     const desiredYaw = Math.atan2(dx, dz);
     const deltaYaw = angleWrap(desiredYaw - vehicle.yaw);
-    const steer = clamp(deltaYaw / 0.8, -1, 1);
+    const steer = clamp(deltaYaw / 0.74, -1, 1);
 
     const cornerSharpness = Math.min(1, Math.abs(deltaYaw) / 1.15);
-    const targetSpeedBase = target.targetSpeed * 1.14;
-    const targetSpeed = Math.max(11, targetSpeedBase * speedMultiplier * (1 - cornerSharpness * 0.14));
+    const targetSpeedBase = target.targetSpeed * 1.24;
+    const targetSpeed = Math.max(13, targetSpeedBase * speedMultiplier * (1 - cornerSharpness * 0.09));
     const speed = Math.max(0, vehicle.speedForward);
 
     let throttle = 0;
     let brake = 0;
-    if (speed < targetSpeed - 1.2) {
-      throttle = clamp((targetSpeed - speed) / 8, 0.4, 1);
-    } else if (speed > targetSpeed + 1.4) {
-      brake = clamp((speed - targetSpeed) / 8, 0.15, 1);
+    if (speed < targetSpeed - 0.9) {
+      throttle = clamp((targetSpeed - speed) / 7.2, 0.52, 1);
+    } else if (speed > targetSpeed + 2.2) {
+      brake = clamp((speed - targetSpeed) / 9.2, 0.12, 1);
     }
 
-    const handbrake = speed > 20 && Math.abs(deltaYaw) > 0.88;
+    // Keep CPU drift readable across all tracks: trigger earlier on medium-tight corners.
+    const handbrake = speed > 18 && (Math.abs(deltaYaw) > 0.74 || cornerSharpness > 0.62);
 
     for (const other of allVehicles) {
       if (other.id === vehicle.id) continue;
       const odx = other.position.x - vehicle.position.x;
       const odz = other.position.z - vehicle.position.z;
       const distSq = odx * odx + odz * odz;
-      if (distSq > 36) continue;
+      if (distSq > 30.25) continue;
       const angleToOther = Math.atan2(odx, odz);
       const frontDelta = Math.abs(angleWrap(angleToOther - vehicle.yaw));
       if (frontDelta < 0.55) {
-        brake = Math.max(brake, 0.65);
-        throttle = Math.min(throttle, 0.35);
+        brake = Math.max(brake, 0.42);
+        throttle = Math.min(throttle, 0.58);
       }
     }
 
@@ -56,6 +57,7 @@ export class CpuDriver {
       brake,
       steer,
       handbrake,
+      boost: false,
       pause: false,
       mute: false,
     };
