@@ -33,6 +33,12 @@ interface TransientFx {
   update: (dtSec: number, ageMs: number, lifeMs: number) => void;
 }
 
+interface CarDriftFxRefs {
+  driftFxLeft?: THREE.Mesh;
+  driftFxRight?: THREE.Mesh;
+  driftFxMaterial?: THREE.MeshBasicMaterial;
+}
+
 type LandscapeAssistResult = 'not-mobile' | 'unsupported' | 'attempted' | 'failed';
 
 export class App {
@@ -456,6 +462,7 @@ export class App {
     if (!this.renderer || !this.raceManager) return;
     for (const mesh of this.carMeshes.values()) {
       this.renderer.scene.remove(mesh);
+      this.disposeObjectResources(mesh);
     }
     this.carMeshes.clear();
 
@@ -553,6 +560,9 @@ export class App {
 
   private syncVehicleMeshes(): void {
     if (!this.raceManager) return;
+    const nowMs = performance.now();
+    const racePhase = this.lastSnapshot?.race.phase ?? this.raceManager.getPhase();
+    const raceFxEnabled = racePhase === 'racing';
     for (const vehicle of this.raceManager.getVehicles()) {
       const mesh = this.carMeshes.get(vehicle.id);
       if (!mesh) continue;
@@ -566,6 +576,43 @@ export class App {
       if (body) {
         body.rotation.z = -vehicle.steerVisual * 0.02;
       }
+
+      const fxRefs = mesh.userData as CarDriftFxRefs;
+      const driftFxLeft = fxRefs.driftFxLeft;
+      const driftFxRight = fxRefs.driftFxRight;
+      const driftFxMaterial = fxRefs.driftFxMaterial;
+      if (!driftFxLeft || !driftFxRight || !driftFxMaterial) {
+        continue;
+      }
+
+      const speedKmh = Math.abs(vehicle.speedForward) * 3.6;
+      const drifting = !vehicle.isOffTrack && speedKmh > 32 && (vehicle.driftActive || vehicle.slipRatio > 0.24);
+      const boosting = vehicle.driftBoostMs > 0;
+      const showDriftFx = raceFxEnabled && (drifting || boosting);
+
+      if (!showDriftFx) {
+        driftFxLeft.visible = false;
+        driftFxRight.visible = false;
+        driftFxMaterial.opacity = 0;
+        continue;
+      }
+
+      const intensityRaw = vehicle.slipRatio * 0.85 + (boosting ? 0.52 + vehicle.driftBoostStrength * 0.48 : 0);
+      const intensity = Math.max(0, Math.min(1.4, intensityRaw));
+      const widthScale = 0.8 + intensity * 0.28;
+      const lengthScale = 0.75 + intensity * 1.05;
+      const pulse = 0.9 + Math.sin(nowMs * 0.012 + vehicle.position.x * 0.08 + vehicle.position.z * 0.08) * 0.1;
+      const opacity = Math.min(0.62, (0.09 + intensity * 0.3) * pulse);
+      const steerOffset = vehicle.steerVisual * 0.14;
+
+      driftFxLeft.visible = true;
+      driftFxRight.visible = true;
+      driftFxLeft.scale.set(widthScale, 1, lengthScale);
+      driftFxRight.scale.set(widthScale, 1, lengthScale);
+      driftFxLeft.rotation.y = -0.08 + steerOffset;
+      driftFxRight.rotation.y = 0.08 + steerOffset;
+      driftFxMaterial.color.setHex(boosting ? 0x9df7ff : 0x4bd9ff);
+      driftFxMaterial.opacity = opacity;
     }
   }
 

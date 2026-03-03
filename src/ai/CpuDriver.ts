@@ -35,7 +35,8 @@ export class CpuDriver {
       brake = clamp((speed - targetSpeed) / 9.2, 0.12, 1);
     }
 
-    const handbrake = speed > 24 && Math.abs(deltaYaw) > 1.04;
+    // Keep CPU drift readable across all tracks: trigger earlier on medium-tight corners.
+    const handbrake = speed > 18 && (Math.abs(deltaYaw) > 0.74 || cornerSharpness > 0.62);
 
     for (const other of allVehicles) {
       if (other.id === vehicle.id) continue;

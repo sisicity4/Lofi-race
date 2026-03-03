@@ -79,8 +79,8 @@ export class InputManager {
     const rightKey = this.keyDown.has('KeyD') || this.keyDown.has('ArrowRight');
     const handbrakeKey = this.keyDown.has('Space');
 
-    // Camera/vehicle yaw convention makes positive steer turn right, so map left/right inversely.
-    const digitalSteer = clamp((leftKey || this.touchActive.left ? 1 : 0) + (rightKey || this.touchActive.right ? -1 : 0), -1, 1);
+    // Positive steer turns right, so map left to -1 and right to +1 for intuitive WASD/Arrow control.
+    const digitalSteer = clamp((leftKey || this.touchActive.left ? -1 : 0) + (rightKey || this.touchActive.right ? 1 : 0), -1, 1);
     const steer = Math.abs(this.touchSteerAxis) > 0.001 ? this.touchSteerAxis : digitalSteer;
     const snapshot: InputState = {
       throttle: throttleKey || this.touchActive.throttle ? 1 : 0,
@@ -165,7 +165,7 @@ export class InputManager {
       const xNormRaw = tx / radius;
       const xNorm = Math.abs(xNormRaw) < DEADZONE ? 0 : clamp((Math.abs(xNormRaw) - DEADZONE) / (1 - DEADZONE), 0, 1) * Math.sign(xNormRaw);
 
-      this.setTouchSteerAxis(-xNorm);
+      this.setTouchSteerAxis(xNorm);
       knobEl.style.transform = `translate(${tx}px, ${ty}px)`;
       zoneEl.classList.add('active');
       knobEl.classList.add('active');

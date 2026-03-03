@@ -150,6 +150,35 @@ export class SceneBuilder {
       root.add(hub);
     }
 
+    const driftFxMat = new THREE.MeshBasicMaterial({
+      color: 0x4bd9ff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const driftFxGeo = new THREE.BoxGeometry(0.2, 0.06, 1.3);
+    const driftFxLeft = new THREE.Mesh(driftFxGeo, driftFxMat);
+    driftFxLeft.position.set(-0.72, 0.2, -1.86);
+    driftFxLeft.visible = false;
+    driftFxLeft.renderOrder = 8;
+    root.add(driftFxLeft);
+
+    const driftFxRight = new THREE.Mesh(driftFxGeo, driftFxMat);
+    driftFxRight.position.set(0.72, 0.2, -1.86);
+    driftFxRight.visible = false;
+    driftFxRight.renderOrder = 8;
+    root.add(driftFxRight);
+
+    const carFxRefs = root.userData as {
+      driftFxLeft?: THREE.Mesh;
+      driftFxRight?: THREE.Mesh;
+      driftFxMaterial?: THREE.MeshBasicMaterial;
+    };
+    carFxRefs.driftFxLeft = driftFxLeft;
+    carFxRefs.driftFxRight = driftFxRight;
+    carFxRefs.driftFxMaterial = driftFxMat;
+
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(1.8, 12),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18 }),
