@@ -238,14 +238,21 @@ input {
 }
 
 .menu-hero {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+
+.menu-hero .title-sub {
+  margin: 6px 0 10px;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .menu-cta-wrap {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  margin: 2px 0 14px;
+  gap: 6px;
+  margin: 0 0 10px;
 }
 
 .menu-start-btn {
@@ -269,62 +276,41 @@ input {
   transform: translateY(1px);
 }
 
-.menu-cta-sub {
-  margin: 0;
-  font-size: 12px;
-  color: #d7eaf5;
-  letter-spacing: 0.02em;
-}
-
 .menu-substatus {
-  margin: 0 0 10px;
+  margin: 0;
   text-align: center;
-  color: #eaf7ff;
-  font-weight: 700;
+  color: #c7deea;
+  font-weight: 600;
   letter-spacing: 0.02em;
-  padding: 7px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 209, 178, 0.35);
-  background: linear-gradient(180deg, rgba(0, 209, 178, 0.2), rgba(0, 209, 178, 0.1));
+  font-size: 11px;
 }
 
 .control-pills {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .control-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px;
+  justify-content: center;
+  padding: 9px 8px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.032);
+  background: rgba(255, 255, 255, 0.026);
   border: 1px solid rgba(255, 255, 255, 0.065);
   font-size: 11px;
-  color: #d9ecf6;
-}
-
-.control-pill span {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 800;
-  color: #13202b;
-  background: linear-gradient(180deg, rgba(255, 209, 102, 1), rgba(255, 175, 62, 1));
+  color: #d4e7f2;
+  text-align: center;
 }
 
 .menu-settings {
-  padding: 12px;
-  margin-top: 2px;
+  padding: 11px;
+  margin-top: 0;
   margin-bottom: 0;
   background: linear-gradient(180deg, rgba(7, 24, 38, 0.82), rgba(4, 14, 24, 0.9));
-  border-color: rgba(125, 211, 252, 0.13);
+  border-color: rgba(125, 211, 252, 0.11);
 }
 
 .menu-settings-head {
@@ -332,7 +318,7 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .menu-inline-btn {
@@ -355,11 +341,6 @@ input {
 
 .menu-setting-row:last-child {
   margin-bottom: 0;
-}
-
-.menu-settings-foot {
-  margin: 8px 0 0;
-  color: #c7dfeb;
 }
 
 .menu-select {
@@ -1596,9 +1577,8 @@ input[type='range'] {
   }
 
   .menu-substatus {
-    margin: 0 0 8px;
+    margin: 0 0 6px;
     font-size: 11px;
-    padding: 6px 9px;
   }
 
   .menu-cta-wrap {

@@ -159,7 +159,7 @@ export class App {
         render: (_alpha, frameDtSec) => this.render(frameDtSec),
       });
       this.loop.start();
-      this.menuView.setStatus(`準備完了 / 設定そのままでOK / ${this.getTrackLabel(this.selectedTrackId)}`);
+      this.menuView.setStatus('準備OK');
     } catch (error) {
       console.error(error);
       this.menuView.setError('ゲーム初期化に失敗しました。ページ再読み込みを試してください。');
@@ -323,7 +323,7 @@ export class App {
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
-    this.menuView.setStatus(`準備完了 / 設定そのままでOK / ${this.getTrackLabel(this.selectedTrackId)}`);
+    this.menuView.setStatus('準備OK');
     this.input.clearAll();
     this.clearTransientFx();
     this.lastFeedbackKey = '';
@@ -407,7 +407,7 @@ export class App {
       this.hudView.setVisible(false);
       this.rebuildRaceForTrack(nextTrack);
       this.persistSettings();
-      this.menuView.setStatus(`準備完了 / 設定そのままでOK / ${this.getTrackLabel(this.selectedTrackId)}`);
+      this.menuView.setStatus('準備OK');
     } catch (error) {
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');

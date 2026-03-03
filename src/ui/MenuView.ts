@@ -25,26 +25,24 @@ export class MenuView {
     this.root.innerHTML = `
       <div class="panel center-card menu-card">
         <div class="menu-hero">
-          <p class="eyebrow">LOW-POLY ARCADE RACING</p>
           <h1 class="title-mark">WEB RACING</h1>
-          <p class="title-sub">ローポリのアーケードレース。3ラップで1位を狙う。</p>
+          <p class="title-sub">3LAP ARCADE RACE</p>
         </div>
 
         <div class="menu-cta-wrap">
           <button id="startButton" class="btn primary menu-start-btn">レース開始</button>
-          <p class="menu-cta-sub">準備できたら、すぐ走れます</p>
-          <p id="menuSubtitle" class="small menu-substatus">準備完了 / 設定そのままでOK</p>
+          <p id="menuSubtitle" class="small menu-substatus">準備OK</p>
         </div>
 
         <div class="control-pills" aria-label="操作の要点">
-          <div class="control-pill"><span>1</span> アクセル / ブレーキ</div>
-          <div class="control-pill"><span>2</span> 左右で曲がる</div>
-          <div class="control-pill"><span>3</span> ドリフトで向きを作る</div>
+          <div class="control-pill">加速 / 減速</div>
+          <div class="control-pill">左右ステア</div>
+          <div class="control-pill">ドリフト</div>
         </div>
 
         <div class="panel menu-settings">
           <div class="menu-settings-head">
-            <div class="small">設定（あとで変更OK）</div>
+            <div class="small">設定</div>
             <button id="muteButton" class="btn ghost menu-inline-btn">音: ON</button>
           </div>
           <label class="small menu-setting-row">
@@ -63,7 +61,6 @@ export class MenuView {
             <span>音量</span>
             <input id="volumeInput" type="range" min="0" max="1" step="0.01" />
           </label>
-          <p class="small menu-settings-foot">初期設定のままでそのまま遊べます。</p>
         </div>
       </div>
     `;
