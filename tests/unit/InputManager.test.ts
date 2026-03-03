@@ -69,6 +69,31 @@ describe('InputManager', () => {
     input.setTouchAction('right', false);
   });
 
+  it('supports acceleration with steering for WASD and arrow keys', () => {
+    const input = new InputManager();
+
+    keyDown(input, 'KeyW');
+    keyDown(input, 'KeyA');
+    let snap = input.snapshot();
+    expect(snap.throttle).toBe(1);
+    expect(snap.steer).toBe(-1);
+
+    keyUp(input, 'KeyA');
+    keyUp(input, 'KeyW');
+    keyDown(input, 'ArrowUp');
+    keyDown(input, 'ArrowRight');
+    snap = input.snapshot();
+    expect(snap.throttle).toBe(1);
+    expect(snap.steer).toBe(1);
+  });
+
+  it('cancels steering when left and right are pressed together', () => {
+    const input = new InputManager();
+    keyDown(input, 'KeyA');
+    keyDown(input, 'KeyD');
+    expect(input.snapshot().steer).toBe(0);
+  });
+
   it('treats touch boost as one-shot input', () => {
     const input = new InputManager();
     input.setTouchAction('boost', true);

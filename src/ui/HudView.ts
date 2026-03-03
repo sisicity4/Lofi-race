@@ -84,9 +84,11 @@ export class HudView {
         <h3>KEYS</h3>
         <ul class="keybind-list">
           <li><span class="kb-key">W / ↑</span><span class="kb-desc">アクセル</span></li>
+          <li><span class="kb-key">A / ←</span><span class="kb-desc">左に曲がる</span></li>
+          <li><span class="kb-key">D / →</span><span class="kb-desc">右に曲がる</span></li>
           <li><span class="kb-key">S / ↓</span><span class="kb-desc">ブレーキ</span></li>
-          <li><span class="kb-key">A D / ← →</span><span class="kb-desc">ステア</span></li>
           <li><span class="kb-key">Space</span><span class="kb-desc">ドリフト</span></li>
+          <li><span class="kb-key">Shift</span><span class="kb-desc">OVERDRIVE</span></li>
           <li><span class="kb-key">Esc / M</span><span class="kb-desc">ポーズ / ミュート</span></li>
         </ul>
       </section>

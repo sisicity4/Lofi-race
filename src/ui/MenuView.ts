@@ -40,9 +40,11 @@ export class MenuView {
         </div>
 
         <div class="control-pills" aria-label="操作の要点">
-          <div class="control-pill">加速 / 減速</div>
-          <div class="control-pill">左右ステア</div>
-          <div class="control-pill">ドリフト</div>
+          <div class="control-pill">W / ↑ アクセル</div>
+          <div class="control-pill">A / ← 左に曲がる</div>
+          <div class="control-pill">D / → 右に曲がる</div>
+          <div class="control-pill">S / ↓ ブレーキ</div>
+          <div class="control-pill">Space ドリフト</div>
         </div>
 
         <div class="panel menu-settings">
