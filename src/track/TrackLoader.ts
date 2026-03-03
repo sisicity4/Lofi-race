@@ -13,25 +13,25 @@ interface TrackSource extends TrackCatalogEntry {
 const TRACK_SOURCES: readonly TrackSource[] = [
   {
     id: 'raceway-gp-long-01',
-    label: 'Grand Raceway / 高速',
+    label: 'Grand Raceway / 高速（直線多め）',
     metaPath: 'assets/data/track_raceway_long.meta.json',
     fallback: createFallbackRacewayTrack,
   },
   {
     id: 'desert-gp-long-01',
-    label: 'Desert Canyon / ドリフト (CCW)',
+    label: 'Desert Canyon / ドリフト向き（反時計回り）',
     metaPath: 'assets/data/track_desert_long.meta.json',
     fallback: createFallbackDesertTrack,
   },
   {
     id: 'forest-gp-long-01',
-    label: 'Forest Run / テクニカル',
+    label: 'Forest Run / テクニカル（切り返し多め）',
     metaPath: 'assets/data/track_forest_long.meta.json',
     fallback: createFallbackForestTrack,
   },
   {
     id: 'studio-gp-long-01',
-    label: 'Studio Backlot / トリッキー (CCW)',
+    label: 'Studio Backlot / トリッキー（反時計回り）',
     metaPath: 'assets/data/track_studio_long.meta.json',
     fallback: createFallbackStudioTrack,
   },
