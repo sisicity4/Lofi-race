@@ -1,58 +1,105 @@
-# Web Racing (MVP)
+# Web Racing
 
-ブラウザだけで動くローポリ3DレーシングゲームのMVPです。
+ブラウザだけで動く、ローポリ3Dアーケードレースゲームです。  
+Three.js + TypeScript + Vite の構成で、デスクトップとモバイル（タッチUI）を同一コードベースで動かします。
 
-## Live URL
-- https://lofi-race.vercel.app
-- https://sisicity4.github.io/Lofi-race/
+## 公開URL
+- Vercel: https://lofi-race.vercel.app
+- GitHub Pages: https://sisicity4.github.io/Lofi-race/
 
-## Tech
-- Vite
-- TypeScript
-- Three.js
-- Vanilla HTML/CSS
-- Vitest / Playwright
+## 実装済みの主な内容
+- 4コース（Raceway / Desert / Forest / Studio）
+- 1レースあたり3ラップ固定
+- プレイヤー1台 + CPU3台
+- 初回表示コースはランダム
+- スタート時は「メニューで表示中のコース」で開始
+- リザルト画面から「別のコースをプレイ」で次レースへ
+- ドリフト + コンボ + OVERDRIVE
+- 場外判定（爆発演出）と安全位置リスポーン
+- デスクトップ操作 + モバイル操作（左ジョイスティック + 右アクション）
+- 待機中ループBGM（`Pixel_Pavement.mp3`）と各種SE
 
-## Run
+## 技術スタック
+- `TypeScript`
+- `Vite`
+- `Three.js`
+- `Vanilla HTML/CSS`
+- `Vitest`
+- `Playwright`
+
+## セットアップ
 ```bash
 npm install
 npm run dev
 ```
 
-## Controls
+## 操作方法
 ### Desktop
-- `WASD` / `Arrow Keys`: アクセル / ブレーキ / ステア（初期設定: 左右反転ON）
-- `Space`: ドリフト補助
+- `W / ↑`: アクセル（ホールド）
+- `S / ↓`: ブレーキ（ホールド）
+- `A / D / ← / →`: ステア
+- `Space`: ドリフト（ホールド）
 - `Shift`: OVERDRIVE
+  - タップで即発動判定
+  - ゲージ不足時は押しっぱなしで予約し、閾値到達時に自動発動
 - `Esc`: ポーズ
-- `M`: ミュート
+- `M`: ミュート切替
+
+補足:
+- 初期設定は「左右操作反転 ON」です（メニューから変更可）。
 
 ### Mobile
-- タッチボタン操作（横画面推奨）
+- 左: 仮想ジョイスティック（ステア）
+- 右: `GO` / `BRAKE` / `DRIFT` / `BOOST`
+- 右上: ポーズ
 
-## Notes
-- 現在のMVPはプロシージャルなローポリメッシュでコース/車を描画しています。
-- `public/assets/models/*.glb` は将来のGLTF差し替え用プレースホルダです。
-- `public/assets/audio/` は将来の音源差し替え用プレースホルダです（現状はWeb Audio合成音）。
+## 設定保存（localStorage）
+- 選択中コースID
+- 画質
+- ミュート状態
+- マスター音量
+- 左右反転設定
+- ベストラップ
 
-## Scripts
-- `npm run dev`
-- `npm run build`
-- `npm run test`
-- `npm run test:e2e`
+## 開発コマンド
+- `npm run dev`: 開発サーバ起動
+- `npm run build`: 本番ビルド
+- `npm run build:pages`: GitHub Pages向けビルド
+- `npm run preview`: ビルド結果のローカル確認
+- `npm run test`: Unitテスト
+- `npm run test:e2e`: E2Eテスト（Chromium / Firefox / WebKit）
+- `npm run test:e2e:chromium`: E2Eテスト（Chromiumのみ）
 
-## Branch Workflow
-- `main`: 本番デプロイ用の安定ブランチ（Vercel / GitHub Pages）
+## デプロイ
+### Vercel
+- `main` への push をトリガに本番更新する運用を推奨
+- セキュリティヘッダは `vercel.json` で設定済み
+
+### GitHub Pages
+- `.github/workflows/deploy-pages.yml` で `main` push 時に自動デプロイ
+- `npm run build:pages` を使って Pages 用 base path でビルド
+- `vite.config.ts` は `GITHUB_REPOSITORY` / `GITHUB_PAGES_BASE` を考慮
+
+## 品質確認
+最低限の確認手順:
+```bash
+npm run build
+npm run test
+npm run test:e2e -- tests/e2e/smoke.spec.ts
+```
+
+## ブランチ運用
+- `main`: 本番デプロイ用の安定ブランチ
 - `dev`: 開発統合ブランチ
 - `feature/*`: 機能追加
 - `fix/*`: バグ修正
 - `chore/*`: ツール・設定・ドキュメント更新
 
-### Basic Flow
-1. `dev` から `feature/*` / `fix/*` / `chore/*` を作成
-2. ブランチ上で実装とテストを完了
-3. `dev` にマージして統合確認
-4. リリース時に `main` へマージ
+基本フロー:
+1. `dev` から作業ブランチを切る
+2. 実装 + テスト
+3. `dev` に統合
+4. リリース時に `main` へ反映
 
-## License
+## ライセンス
 MIT
