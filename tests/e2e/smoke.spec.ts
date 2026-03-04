@@ -23,7 +23,7 @@ test('can switch map from menu and start race', async ({ page }) => {
   await startButton.click();
 
   await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
-  await expect(trackSelect).toHaveValue('raceway-gp-long-01');
+  await expect(trackSelect).toHaveValue('studio-gp-long-01');
 });
 
 test.describe('mobile', () => {

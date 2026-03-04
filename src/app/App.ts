@@ -83,6 +83,7 @@ export class App {
   private inputGuideTouchMode: boolean | null = null;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
+  private menuTrackSelectionId: string;
   private autoNextRaceTimerId: number | null = null;
   private raceStartInFlight = false;
   private trackChangeRequestSeq = 0;
@@ -91,6 +92,7 @@ export class App {
     this.settings = this.settingsStore.load();
     this.trackCatalog = this.trackLoader.getTrackCatalog();
     this.selectedTrackId = this.pickRandomTrackId();
+    this.menuTrackSelectionId = this.selectedTrackId;
     this.settings.trackId = this.selectedTrackId;
     this.input.setSteeringInverted(this.settings.invertSteer);
     this.audio = new AudioManager({ muted: this.settings.muted, masterVolume: this.settings.masterVolume });
@@ -344,7 +346,9 @@ export class App {
     });
 
     try {
-      const nextTrackId = this.pickRandomTrackId(options.excludeCurrentTrack ? this.selectedTrackId : undefined);
+      const nextTrackId = options.excludeCurrentTrack
+        ? this.pickRandomTrackId(this.selectedTrackId)
+        : this.trackLoader.resolveTrackId(this.menuTrackSelectionId);
       if (nextTrackId !== this.selectedTrackId) {
         this.menuView.setLoading(true);
         try {
@@ -443,6 +447,7 @@ export class App {
     if (!this.renderer) return;
     this.track = track;
     this.selectedTrackId = this.trackLoader.resolveTrackId(track.id);
+    this.menuTrackSelectionId = this.selectedTrackId;
     this.settings.trackId = this.selectedTrackId;
 
     this.sceneBuilder.buildScene(this.renderer.scene, track);
@@ -465,6 +470,7 @@ export class App {
 
   private async handleTrackChange(trackId: string): Promise<void> {
     const resolvedTrackId = this.trackLoader.resolveTrackId(trackId);
+    this.menuTrackSelectionId = resolvedTrackId;
     this.menuView.setTrackOptions(this.trackCatalog, resolvedTrackId);
 
     if (resolvedTrackId === this.selectedTrackId) return;
@@ -493,6 +499,7 @@ export class App {
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
       this.lastMenuPortraitBlocked = this.isPortraitOnTouchDevice();
+      this.menuTrackSelectionId = this.selectedTrackId;
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
       if (requestSeq !== this.trackChangeRequestSeq) {
@@ -952,9 +959,9 @@ export class App {
 
   private getMenuReadyStatus(isPortraitOnTouch: boolean): string {
     if (isPortraitOnTouch) {
-      return '縦画面でも開始できます（横画面推奨） / 開始時にランダムコースを選びます';
+      return '縦画面でも開始できます（横画面推奨） / 表示中コースで開始します（初回表示はランダム）';
     }
-    return '開始時にランダムコースを選びます';
+    return '表示中コースで開始します（初回表示はランダム）';
   }
 
   private handleMomentFeedback(snapshot: RaceSnapshot): void {
