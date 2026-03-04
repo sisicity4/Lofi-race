@@ -112,7 +112,7 @@ describe('RaceManager overdrive', () => {
     expect(snapshot.race.overdriveState).toBe('active');
     expect(snapshot.race.overdriveActiveMs).toBeGreaterThan(0);
     expect(snapshot.race.overdriveMeter01).toBe(0);
-    expect(snapshot.race.overdriveSpeedMultiplier).toBeGreaterThan(1);
+    expect(snapshot.race.overdriveSpeedMultiplier).toBeGreaterThan(1.2);
   });
 
   it('enters overheated penalty on wall-contact failure while overdrive is active', () => {

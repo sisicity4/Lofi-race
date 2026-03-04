@@ -1,7 +1,7 @@
 import { formatMs } from '../core/math';
 import type { RaceSnapshot } from '../types/game';
 import type { InputManager, TouchAction } from '../input/InputManager';
-import { buildKeyboardGuideRows, buildTouchGuideRows, type InputGuideRow } from '../input/bindings';
+import { buildDesktopControlGuideRows, buildTouchGuideRows, type InputGuideRow } from '../input/bindings';
 
 interface HudCallbacks {
   onPauseButton: () => void;
@@ -35,6 +35,7 @@ export class HudView {
   private readonly comboValueEl: HTMLSpanElement;
   private readonly comboFillEl: HTMLSpanElement;
   private readonly driftBadgeEl: HTMLDivElement;
+  private readonly overdriveEdgeLinesEl: HTMLDivElement;
   private readonly driftLinesEl: HTMLDivElement;
   private readonly flashEl: HTMLDivElement;
   private readonly keybindsSectionEl: HTMLElement;
@@ -89,7 +90,7 @@ export class HudView {
       </div>
 
       <section id="hudKeybinds" class="hud-keybinds panel" aria-label="keyboard controls">
-        <h3>KEYBOARD</h3>
+        <h3>CONTROLS</h3>
         <ul id="hudKeybindList" class="keybind-list"></ul>
       </section>
       <section id="hudTouchGuide" class="hud-touch-guide panel hidden" aria-label="touch controls">
@@ -117,6 +118,7 @@ export class HudView {
       <div id="driftBadge" class="drift-badge hidden">DRIFT</div>
       <div id="countdownEl" class="countdown"></div>
       <div id="messageEl" class="message-banner hidden"></div>
+      <div id="overdriveEdgeLines" class="overdrive-edge-lines"></div>
       <div id="driftLines" class="drift-lines"></div>
       <div id="flashEl" class="hud-flash"></div>
 
@@ -159,6 +161,7 @@ export class HudView {
     this.comboValueEl = this.root.querySelector('#comboValue') as HTMLSpanElement;
     this.comboFillEl = this.root.querySelector('#comboFill') as HTMLSpanElement;
     this.driftBadgeEl = this.root.querySelector('#driftBadge') as HTMLDivElement;
+    this.overdriveEdgeLinesEl = this.root.querySelector('#overdriveEdgeLines') as HTMLDivElement;
     this.driftLinesEl = this.root.querySelector('#driftLines') as HTMLDivElement;
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
     this.keybindsSectionEl = this.root.querySelector('#hudKeybinds') as HTMLElement;
@@ -201,6 +204,7 @@ export class HudView {
       this.lastLeaderboardKey = '';
       this.leaderboardList.textContent = '';
       this.root.classList.remove('is-fast', 'is-drifting', 'is-boosting');
+      this.root.classList.remove('is-overdrive');
       this.driftBadgeEl.textContent = 'DRIFT';
       this.comboBadgeEl.classList.add('hidden');
       this.comboValueEl.textContent = 'x0';
@@ -209,6 +213,10 @@ export class HudView {
       this.overdriveHudEl.dataset.state = 'idle';
       this.overdriveStateEl.textContent = 'CHARGE';
       this.overdriveFillEl.style.transform = 'scaleX(0)';
+      this.root.style.removeProperty('--overdrive-edge-opacity');
+      this.root.style.removeProperty('--overdrive-edge-flow-ms');
+      this.root.style.removeProperty('--overdrive-edge-scale');
+      this.overdriveEdgeLinesEl.classList.remove('active');
     }
   }
 
@@ -277,15 +285,33 @@ export class HudView {
     this.speedDialEl.style.setProperty('--speed-fill', `${Math.min(1, speedKmh / 180)}`);
     const drifting = !player.isOffTrack && speedKmh > 35 && (player.driftActive || player.slipRatio > 0.28);
     const boosting = snapshot.race.phase === 'racing' && player.driftBoostMs > 0;
+    const overdriveActive = snapshot.race.overdriveState === 'active';
+    const overdriveIntensity = overdriveActive
+      ? Math.max(0, Math.min(1, (snapshot.race.overdriveSpeedMultiplier - 1) / 0.45))
+      : 0;
     this.root.classList.toggle('is-fast', speedKmh >= 100);
     this.root.classList.toggle('is-drifting', drifting);
     this.root.classList.toggle('is-boosting', boosting);
+    this.root.classList.toggle('is-overdrive', overdriveActive);
 
-    const driftIntensity = Math.min(1, player.slipRatio * 0.9 + (boosting ? 0.5 + player.driftBoostStrength * 0.4 : 0));
+    const driftIntensity = Math.min(
+      1,
+      player.slipRatio * 0.9 +
+      (boosting ? 0.5 + player.driftBoostStrength * 0.4 : 0) +
+      (overdriveActive ? 0.16 + overdriveIntensity * 0.2 : 0),
+    );
     this.root.style.setProperty('--drift-lines-opacity', `${(drifting || boosting) ? (0.08 + driftIntensity * 0.26) : 0}`);
     this.root.style.setProperty('--drift-lines-scale', `${1 + driftIntensity * 0.16}`);
     this.root.style.setProperty('--drift-lines-spin-ms', `${Math.round(520 - driftIntensity * 210)}ms`);
     this.driftLinesEl.classList.toggle('active', drifting || boosting);
+
+    const overdriveEdgeOpacity = overdriveActive ? (0.2 + overdriveIntensity * 0.52) : 0;
+    const overdriveEdgeFlowMs = Math.round(270 - overdriveIntensity * 120);
+    const overdriveEdgeScale = 1 + overdriveIntensity * 0.24;
+    this.root.style.setProperty('--overdrive-edge-opacity', `${overdriveEdgeOpacity}`);
+    this.root.style.setProperty('--overdrive-edge-flow-ms', `${overdriveEdgeFlowMs}ms`);
+    this.root.style.setProperty('--overdrive-edge-scale', `${overdriveEdgeScale}`);
+    this.overdriveEdgeLinesEl.classList.toggle('active', overdriveActive);
 
     if (boosting) {
       this.driftBadgeEl.textContent = 'BOOST';
@@ -446,10 +472,7 @@ export class HudView {
   }
 
   private renderInputGuides(): void {
-    const keyboardRows = buildKeyboardGuideRows(
-      ['throttle', 'steerLeft', 'steerRight', 'brake', 'drift', 'boost', 'pause', 'mute'],
-      { steerInverted: this.steerInverted },
-    );
+    const keyboardRows = buildDesktopControlGuideRows();
     this.renderGuideList(this.keybindListEl, keyboardRows);
 
     const touchRows = buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost', 'pause'], {

@@ -1,6 +1,6 @@
 import type { GraphicsQuality, SettingsData } from '../types/game';
 import type { TrackCatalogEntry } from '../track/TrackLoader';
-import { buildKeyboardGuideRows, buildTouchGuideRows } from '../input/bindings';
+import { buildDesktopControlGuideRows, buildTouchGuideRows } from '../input/bindings';
 
 interface MenuCallbacks {
   onStart: () => void;
@@ -165,13 +165,23 @@ export class MenuView {
   }
 
   setError(message: string): void {
-    this.root.innerHTML = `
-      <div class="panel center-card error-card">
-        <h2 style="margin-top:0;">起動できませんでした</h2>
-        <p>${message}</p>
-        <p class="small">WebGL対応ブラウザ（Chrome / Firefox / Safari）を確認してください。</p>
-      </div>
-    `;
+    this.root.textContent = '';
+    const card = document.createElement('div');
+    card.className = 'panel center-card error-card';
+
+    const title = document.createElement('h2');
+    title.style.marginTop = '0';
+    title.textContent = '起動できませんでした';
+
+    const body = document.createElement('p');
+    body.textContent = message;
+
+    const hint = document.createElement('p');
+    hint.className = 'small';
+    hint.textContent = 'WebGL対応ブラウザ（Chrome / Firefox / Safari）を確認してください。';
+
+    card.append(title, body, hint);
+    this.root.append(card);
   }
 
   setStatus(message: string): void {
@@ -186,7 +196,7 @@ export class MenuView {
   private renderControlPills(): void {
     const rows = this.inputGuideMode === 'touch'
       ? buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost'], { steerInverted: this.steerInverted })
-      : buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift'], { steerInverted: this.steerInverted });
+      : buildDesktopControlGuideRows();
 
     this.controlPills.textContent = '';
     for (const row of rows) {

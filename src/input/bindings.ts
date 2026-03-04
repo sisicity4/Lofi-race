@@ -195,6 +195,51 @@ export function buildKeyboardGuideRows(actions: readonly KeyboardActionId[], opt
   });
 }
 
+export function buildDesktopControlGuideRows(): InputGuideRow[] {
+  const throttle = getKeyboardBinding('throttle');
+  const brake = getKeyboardBinding('brake');
+  const steerLeft = getKeyboardBinding('steerLeft');
+  const steerRight = getKeyboardBinding('steerRight');
+  const drift = getKeyboardBinding('drift');
+  const boost = getKeyboardBinding('boost');
+  const pause = getKeyboardBinding('pause');
+
+  const steerKeyText = `${steerLeft.keyLabels[0]} ${steerRight.keyLabels[0]} / ${steerLeft.keyLabels[1]} ${steerRight.keyLabels[1]}`;
+
+  return [
+    {
+      keyText: throttle.keyLabels.join(' / '),
+      actionText: 'ACCEL',
+      pressMode: throttle.pressMode,
+    },
+    {
+      keyText: brake.keyLabels.join(' / '),
+      actionText: 'BRAKE',
+      pressMode: brake.pressMode,
+    },
+    {
+      keyText: steerKeyText,
+      actionText: 'STEER',
+      pressMode: steerLeft.pressMode,
+    },
+    {
+      keyText: 'SPACE',
+      actionText: 'DRIFT',
+      pressMode: drift.pressMode,
+    },
+    {
+      keyText: 'SHIFT',
+      actionText: 'OVERDRIVE',
+      pressMode: boost.pressMode,
+    },
+    {
+      keyText: pause.keyLabels.join(' / '),
+      actionText: 'PAUSE',
+      pressMode: pause.pressMode,
+    },
+  ];
+}
+
 export function buildTouchGuideRows(actions: readonly TouchGuideActionId[], options: InputGuideOptions = {}): InputGuideRow[] {
   const steerInverted = Boolean(options.steerInverted);
   return actions.map((action) => {
