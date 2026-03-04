@@ -87,6 +87,7 @@ export class App {
     this.trackCatalog = this.trackLoader.getTrackCatalog();
     this.selectedTrackId = this.trackLoader.resolveTrackId(this.settings.trackId);
     this.settings.trackId = this.selectedTrackId;
+    this.input.setSteeringInverted(this.settings.invertSteer);
     this.audio = new AudioManager({ muted: this.settings.muted, masterVolume: this.settings.masterVolume });
 
     this.shell = document.createElement('div');
@@ -144,6 +145,7 @@ export class App {
   async mount(): Promise<void> {
     this.menuView.setSettings(this.settings);
     this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
+    this.hudView.setSteerInverted(this.settings.invertSteer);
     this.syncInputGuideMode();
     this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
     this.hudView.bindTouchControls(this.input);
@@ -200,6 +202,10 @@ export class App {
       onQualityChange: (quality) => {
         this.playUiClick('secondary');
         this.applyGraphicsQuality(quality);
+      },
+      onInvertSteerChange: (inverted) => {
+        this.playUiClick('toggle');
+        this.setInvertSteer(inverted);
       },
       onMuteToggle: () => {
         const wasMuted = this.audio.isMuted();
@@ -826,6 +832,21 @@ export class App {
       graphicsQuality: this.settings.graphicsQuality,
       muted: this.settings.muted,
       masterVolume: this.settings.masterVolume,
+      invertSteer: this.settings.invertSteer,
+    });
+  }
+
+  private setInvertSteer(inverted: boolean): void {
+    this.settings.invertSteer = inverted;
+    this.input.setSteeringInverted(inverted);
+    this.menuView.setSettings(this.settings);
+    this.hudView.setSteerInverted(inverted);
+    this.persistSettings();
+    this.eventBus.emit('settings:changed', {
+      graphicsQuality: this.settings.graphicsQuality,
+      muted: this.settings.muted,
+      masterVolume: this.settings.masterVolume,
+      invertSteer: this.settings.invertSteer,
     });
   }
 
@@ -838,6 +859,7 @@ export class App {
       graphicsQuality: this.settings.graphicsQuality,
       muted: this.settings.muted,
       masterVolume: this.settings.masterVolume,
+      invertSteer: this.settings.invertSteer,
     });
   }
 
@@ -849,6 +871,7 @@ export class App {
       graphicsQuality: this.settings.graphicsQuality,
       muted: this.settings.muted,
       masterVolume: this.settings.masterVolume,
+      invertSteer: this.settings.invertSteer,
     });
   }
 

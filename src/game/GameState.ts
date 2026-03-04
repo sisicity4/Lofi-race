@@ -11,5 +11,5 @@ export interface GameEvents {
   'car:oob': { vehicleId: string; x: number; y: number; z: number; reason: 'wall-contact' | 'fell-off' };
   'car:respawned': { vehicleId: string; x: number; y: number; z: number };
   'ui:pauseToggled': { paused: boolean };
-  'settings:changed': { graphicsQuality: GraphicsQuality; muted: boolean; masterVolume: number };
+  'settings:changed': { graphicsQuality: GraphicsQuality; muted: boolean; masterVolume: number; invertSteer: boolean };
 }

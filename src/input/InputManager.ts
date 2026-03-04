@@ -41,6 +41,7 @@ export class InputManager {
   private joystickPointerId: number | null = null;
   private joystickZoneEl: HTMLElement | null = null;
   private joystickThumbEl: HTMLElement | null = null;
+  private steeringInverted = true;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const code = event.code;
@@ -111,6 +112,10 @@ export class InputManager {
 
   setTouchSteerAxis(axis: number): void {
     this.touchSteerAxis = clamp(axis, -1, 1);
+  }
+
+  setSteeringInverted(inverted: boolean): void {
+    this.steeringInverted = inverted;
   }
 
   clearTouchSteerAxis(): void {
@@ -243,7 +248,8 @@ export class InputManager {
     // Positive steer turns right.
     const digitalSteer = clamp((leftKey || this.touchActive.left ? -1 : 0) + (rightKey || this.touchActive.right ? 1 : 0), -1, 1);
     const baseSteer = Math.abs(this.touchSteerAxis) > 0.001 ? this.touchSteerAxis : digitalSteer;
-    const steer = Math.abs(baseSteer) < 1e-6 ? 0 : baseSteer;
+    const steerRaw = this.steeringInverted ? -baseSteer : baseSteer;
+    const steer = Math.abs(steerRaw) < 1e-6 ? 0 : steerRaw;
     const snapshot: InputState = {
       throttle: throttleKey || this.touchActive.throttle ? 1 : 0,
       brake: brakeKey || this.touchActive.brake ? 1 : 0,
@@ -293,11 +299,19 @@ export class InputManager {
     const rightExpected = this.isKeyboardActionPressed('steerRight') || this.touchActive.right;
 
     if (!joystickSteerActive) {
-      if (leftExpected && !rightExpected && snapshot.steer >= -0.001) {
+      const expectedLeftSteer = this.steeringInverted ? 1 : -1;
+      const expectedRightSteer = this.steeringInverted ? -1 : 1;
+      if (leftExpected && !rightExpected && expectedLeftSteer < 0 && snapshot.steer >= -0.001) {
         warnings.push('左入力中なのに steer が左方向ではありません');
       }
-      if (rightExpected && !leftExpected && snapshot.steer <= 0.001) {
+      if (leftExpected && !rightExpected && expectedLeftSteer > 0 && snapshot.steer <= 0.001) {
+        warnings.push('左入力中なのに steer が反転設定どおりの方向ではありません');
+      }
+      if (rightExpected && !leftExpected && expectedRightSteer > 0 && snapshot.steer <= 0.001) {
         warnings.push('右入力中なのに steer が右方向ではありません');
+      }
+      if (rightExpected && !leftExpected && expectedRightSteer < 0 && snapshot.steer >= -0.001) {
+        warnings.push('右入力中なのに steer が反転設定どおりの方向ではありません');
       }
       if (leftExpected && rightExpected && Math.abs(snapshot.steer) > 0.001) {
         warnings.push('左右同時入力なのに steer が0になっていません');

@@ -51,6 +51,7 @@ export class HudView {
   private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
   private inputGuideMode: InputGuideMode = 'keyboard';
+  private steerInverted = true;
 
   constructor(parent: HTMLElement, private readonly shell: HTMLElement) {
     this.root = document.createElement('div');
@@ -226,6 +227,12 @@ export class HudView {
   setInputGuideMode(mode: InputGuideMode): void {
     if (this.inputGuideMode === mode) return;
     this.inputGuideMode = mode;
+    this.renderInputGuides();
+  }
+
+  setSteerInverted(inverted: boolean): void {
+    if (this.steerInverted === inverted) return;
+    this.steerInverted = inverted;
     this.renderInputGuides();
   }
 
@@ -439,10 +446,15 @@ export class HudView {
   }
 
   private renderInputGuides(): void {
-    const keyboardRows = buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift', 'boost', 'pause', 'mute']);
+    const keyboardRows = buildKeyboardGuideRows(
+      ['throttle', 'steerLeft', 'steerRight', 'brake', 'drift', 'boost', 'pause', 'mute'],
+      { steerInverted: this.steerInverted },
+    );
     this.renderGuideList(this.keybindListEl, keyboardRows);
 
-    const touchRows = buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost', 'pause']);
+    const touchRows = buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost', 'pause'], {
+      steerInverted: this.steerInverted,
+    });
     this.renderGuideList(this.touchGuideListEl, touchRows);
 
     const touchMode = this.inputGuideMode === 'touch';

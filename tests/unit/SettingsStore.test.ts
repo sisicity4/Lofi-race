@@ -18,6 +18,7 @@ describe('SettingsStore', () => {
     expect(settings.trackId).toBe('raceway-gp-long-01');
     expect(settings.graphicsQuality).toBe('auto');
     expect(settings.muted).toBe(false);
+    expect(settings.invertSteer).toBe(true);
   });
 
   it('saves and loads settings round-trip', () => {
@@ -28,6 +29,7 @@ describe('SettingsStore', () => {
       graphicsQuality: 'low',
       muted: true,
       masterVolume: 0.25,
+      invertSteer: false,
       bestLapMs: 12345,
     });
     const loaded = store.load();
@@ -36,6 +38,7 @@ describe('SettingsStore', () => {
       graphicsQuality: 'low',
       muted: true,
       masterVolume: 0.25,
+      invertSteer: false,
       bestLapMs: 12345,
     });
   });

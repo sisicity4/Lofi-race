@@ -7,6 +7,7 @@ interface MenuCallbacks {
   onAssistLandscape: () => void;
   onTrackChange: (trackId: string) => void;
   onQualityChange: (quality: GraphicsQuality) => void;
+  onInvertSteerChange: (inverted: boolean) => void;
   onMuteToggle: () => void;
   onVolumeChange: (volume: number) => void;
 }
@@ -19,6 +20,7 @@ export class MenuView {
   private readonly assistLandscapeButton: HTMLButtonElement;
   private readonly trackSelect: HTMLSelectElement;
   private readonly qualitySelect: HTMLSelectElement;
+  private readonly invertSteerButton: HTMLButtonElement;
   private readonly muteButton: HTMLButtonElement;
   private readonly volumeInput: HTMLInputElement;
   private readonly subtitle: HTMLParagraphElement;
@@ -27,6 +29,7 @@ export class MenuView {
   private loading = false;
   private portraitStartBlocked = false;
   private inputGuideMode: InputGuideMode = 'keyboard';
+  private steerInverted = true;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -63,6 +66,10 @@ export class MenuView {
               <option value="standard">Standard</option>
             </select>
           </label>
+          <label class="small menu-setting-row">
+            <span>左右操作</span>
+            <button id="invertSteerButton" class="btn ghost menu-inline-btn menu-toggle-btn" type="button">反転: ON</button>
+          </label>
           <label class="small menu-setting-row volume-row">
             <span>音量</span>
             <input id="volumeInput" type="range" min="0" max="1" step="0.01" />
@@ -77,6 +84,7 @@ export class MenuView {
     this.assistLandscapeButton = this.root.querySelector('#assistLandscapeButton') as HTMLButtonElement;
     this.trackSelect = this.root.querySelector('#trackSelect') as HTMLSelectElement;
     this.qualitySelect = this.root.querySelector('#qualitySelect') as HTMLSelectElement;
+    this.invertSteerButton = this.root.querySelector('#invertSteerButton') as HTMLButtonElement;
     this.muteButton = this.root.querySelector('#muteButton') as HTMLButtonElement;
     this.volumeInput = this.root.querySelector('#volumeInput') as HTMLInputElement;
     this.subtitle = this.root.querySelector('#menuSubtitle') as HTMLParagraphElement;
@@ -87,6 +95,12 @@ export class MenuView {
     this.trackSelect.addEventListener('change', () => this.callbacks.onTrackChange?.(this.trackSelect.value));
     this.qualitySelect.addEventListener('change', () => {
       this.callbacks.onQualityChange?.(this.qualitySelect.value as GraphicsQuality);
+    });
+    this.invertSteerButton.addEventListener('click', () => {
+      this.steerInverted = !this.steerInverted;
+      this.syncInvertSteerButton();
+      this.renderControlPills();
+      this.callbacks.onInvertSteerChange?.(this.steerInverted);
     });
     this.muteButton.addEventListener('click', () => this.callbacks.onMuteToggle?.());
     this.volumeInput.addEventListener('input', () => this.callbacks.onVolumeChange?.(Number(this.volumeInput.value)));
@@ -99,6 +113,9 @@ export class MenuView {
 
   setSettings(settings: SettingsData): void {
     this.qualitySelect.value = settings.graphicsQuality;
+    this.steerInverted = settings.invertSteer;
+    this.syncInvertSteerButton();
+    this.renderControlPills();
     this.volumeInput.value = String(settings.masterVolume);
     this.muteButton.textContent = settings.muted ? '音: OFF' : '音: ON';
   }
@@ -126,6 +143,7 @@ export class MenuView {
     this.syncStartButtonState();
     this.trackSelect.disabled = this.loading || this.trackSelect.options.length <= 1;
     this.qualitySelect.disabled = loading;
+    this.invertSteerButton.disabled = loading;
     this.muteButton.disabled = loading;
     this.volumeInput.disabled = loading;
     this.assistLandscapeButton.disabled = loading;
@@ -167,8 +185,8 @@ export class MenuView {
 
   private renderControlPills(): void {
     const rows = this.inputGuideMode === 'touch'
-      ? buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost'])
-      : buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift']);
+      ? buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost'], { steerInverted: this.steerInverted })
+      : buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift'], { steerInverted: this.steerInverted });
 
     this.controlPills.textContent = '';
     for (const row of rows) {
@@ -177,5 +195,9 @@ export class MenuView {
       pill.textContent = `${row.keyText} ${row.actionText}`;
       this.controlPills.append(pill);
     }
+  }
+
+  private syncInvertSteerButton(): void {
+    this.invertSteerButton.textContent = this.steerInverted ? '反転: ON' : '反転: OFF';
   }
 }

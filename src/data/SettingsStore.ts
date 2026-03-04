@@ -23,6 +23,7 @@ export class SettingsStore {
         graphicsQuality: parsed.graphicsQuality ?? DEFAULT_SETTINGS.graphicsQuality,
         muted: parsed.muted ?? DEFAULT_SETTINGS.muted,
         masterVolume: typeof parsed.masterVolume === 'number' ? parsed.masterVolume : DEFAULT_SETTINGS.masterVolume,
+        invertSteer: typeof parsed.invertSteer === 'boolean' ? parsed.invertSteer : DEFAULT_SETTINGS.invertSteer,
         bestLapMs: typeof parsed.bestLapMs === 'number' ? parsed.bestLapMs : DEFAULT_SETTINGS.bestLapMs,
       };
     } catch {

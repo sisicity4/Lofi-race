@@ -21,6 +21,12 @@ describe('input bindings guide generation', () => {
     expect(rows[2].keyText).toBe('D / →');
   });
 
+  it('builds inverted steer guide rows when requested', () => {
+    const rows = buildKeyboardGuideRows(['steerLeft', 'steerRight'], { steerInverted: true });
+    expect(rows[0].actionText).toContain('右に曲がる');
+    expect(rows[1].actionText).toContain('左に曲がる');
+  });
+
   it('builds touch guide rows from bindings', () => {
     const rows = buildTouchGuideRows(['steer', 'throttle', 'drift']);
     expect(rows[0].keyText).toBe('左ジョイスティック');

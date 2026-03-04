@@ -131,6 +131,10 @@ export interface InputGuideRow {
   pressMode: BindingPressMode;
 }
 
+interface InputGuideOptions {
+  steerInverted?: boolean;
+}
+
 const keyboardBindingMap = new Map<KeyboardActionId, KeyboardBindingDefinition>(
   KEYBOARD_BINDINGS.map((binding) => [binding.action, binding]),
 );
@@ -173,26 +177,35 @@ export function keyLabelFromCode(code: string): string {
   return keyLabelByCode.get(code) ?? code;
 }
 
-export function buildKeyboardGuideRows(actions: readonly KeyboardActionId[]): InputGuideRow[] {
+export function buildKeyboardGuideRows(actions: readonly KeyboardActionId[], options: InputGuideOptions = {}): InputGuideRow[] {
+  const steerInverted = Boolean(options.steerInverted);
   return actions.map((action) => {
     const binding = getKeyboardBinding(action);
+    let actionLabel = binding.actionLabelJa;
+    if (steerInverted && action === 'steerLeft') {
+      actionLabel = '右に曲がる';
+    } else if (steerInverted && action === 'steerRight') {
+      actionLabel = '左に曲がる';
+    }
     return {
       keyText: binding.keyLabels.join(' / '),
-      actionText: `${binding.actionLabelJa}（${formatPressModeJa(binding.pressMode)}）`,
+      actionText: `${actionLabel}（${formatPressModeJa(binding.pressMode)}）`,
       pressMode: binding.pressMode,
     };
   });
 }
 
-export function buildTouchGuideRows(actions: readonly TouchGuideActionId[]): InputGuideRow[] {
+export function buildTouchGuideRows(actions: readonly TouchGuideActionId[], options: InputGuideOptions = {}): InputGuideRow[] {
+  const steerInverted = Boolean(options.steerInverted);
   return actions.map((action) => {
     const binding = touchGuideBindingMap.get(action);
     if (!binding) {
       throw new Error(`Unknown touch guide action: ${action}`);
     }
+    const actionLabel = steerInverted && action === 'steer' ? '左右ステア反転' : binding.actionLabelJa;
     return {
       keyText: binding.controlLabelJa,
-      actionText: `${binding.actionLabelJa}（${formatPressModeJa(binding.pressMode)}）`,
+      actionText: `${actionLabel}（${formatPressModeJa(binding.pressMode)}）`,
       pressMode: binding.pressMode,
     };
   });

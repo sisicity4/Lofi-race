@@ -185,5 +185,6 @@ export interface SettingsData {
   graphicsQuality: GraphicsQuality;
   muted: boolean;
   masterVolume: number;
+  invertSteer: boolean;
   bestLapMs: number | null;
 }

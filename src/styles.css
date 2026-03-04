@@ -352,6 +352,11 @@ input {
   font-size: 11px;
 }
 
+.menu-toggle-btn {
+  width: 100%;
+  min-height: 38px;
+}
+
 .menu-setting-row {
   display: grid;
   gap: 6px;

@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
   graphicsQuality: 'auto',
   muted: false,
   masterVolume: 0.6,
+  invertSteer: true,
   bestLapMs: null,
 };
 

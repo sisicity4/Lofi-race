@@ -17,19 +17,19 @@ function keyUp(input: InputManager, code: string): void {
 }
 
 describe('InputManager', () => {
-  it('clamps touch joystick steer axis to [-1, 1]', () => {
+  it('clamps touch joystick steer axis to [-1, 1] after invert mapping', () => {
     const input = new InputManager();
     input.setTouchSteerAxis(2.5);
-    expect(input.snapshot().steer).toBe(1);
-    input.setTouchSteerAxis(-5);
     expect(input.snapshot().steer).toBe(-1);
+    input.setTouchSteerAxis(-5);
+    expect(input.snapshot().steer).toBe(1);
   });
 
-  it('prioritizes joystick steer over digital touch steer', () => {
+  it('prioritizes joystick steer over digital touch steer (default inverted)', () => {
     const input = new InputManager();
     input.setTouchAction('left', true);
     input.setTouchSteerAxis(-0.55);
-    expect(input.snapshot().steer).toBeCloseTo(-0.55, 5);
+    expect(input.snapshot().steer).toBeCloseTo(0.55, 5);
   });
 
   it('clearAll resets touch joystick steer to neutral', () => {
@@ -39,34 +39,34 @@ describe('InputManager', () => {
     expect(input.snapshot().steer).toBe(0);
   });
 
-  it('maps A/ArrowLeft to steer -1 and D/ArrowRight to steer +1', () => {
+  it('maps A/ArrowLeft to steer +1 and D/ArrowRight to steer -1 by default', () => {
     const input = new InputManager();
 
     keyDown(input, 'KeyA');
-    expect(input.snapshot().steer).toBe(-1);
+    expect(input.snapshot().steer).toBe(1);
     keyUp(input, 'KeyA');
 
     keyDown(input, 'ArrowLeft');
-    expect(input.snapshot().steer).toBe(-1);
+    expect(input.snapshot().steer).toBe(1);
     keyUp(input, 'ArrowLeft');
 
     keyDown(input, 'KeyD');
-    expect(input.snapshot().steer).toBe(1);
+    expect(input.snapshot().steer).toBe(-1);
     keyUp(input, 'KeyD');
 
     keyDown(input, 'ArrowRight');
-    expect(input.snapshot().steer).toBe(1);
+    expect(input.snapshot().steer).toBe(-1);
     keyUp(input, 'ArrowRight');
   });
 
-  it('maps touch left/right buttons to expected steer direction', () => {
+  it('maps touch left/right buttons to expected steer direction with default inversion', () => {
     const input = new InputManager();
     input.setTouchAction('left', true);
-    expect(input.snapshot().steer).toBe(-1);
+    expect(input.snapshot().steer).toBe(1);
     input.setTouchAction('left', false);
 
     input.setTouchAction('right', true);
-    expect(input.snapshot().steer).toBe(1);
+    expect(input.snapshot().steer).toBe(-1);
     input.setTouchAction('right', false);
   });
 
@@ -77,7 +77,7 @@ describe('InputManager', () => {
     keyDown(input, 'KeyA');
     let snap = input.snapshot();
     expect(snap.throttle).toBe(1);
-    expect(snap.steer).toBe(-1);
+    expect(snap.steer).toBe(1);
 
     keyUp(input, 'KeyA');
     keyUp(input, 'KeyW');
@@ -85,7 +85,20 @@ describe('InputManager', () => {
     keyDown(input, 'ArrowRight');
     snap = input.snapshot();
     expect(snap.throttle).toBe(1);
-    expect(snap.steer).toBe(1);
+    expect(snap.steer).toBe(-1);
+  });
+
+  it('supports non-inverted steering when option is disabled', () => {
+    const input = new InputManager();
+    input.setSteeringInverted(false);
+
+    keyDown(input, 'KeyA');
+    expect(input.snapshot().steer).toBe(-1);
+    keyUp(input, 'KeyA');
+
+    keyDown(input, 'KeyD');
+    expect(input.snapshot().steer).toBe(1);
+    keyUp(input, 'KeyD');
   });
 
   it('treats throttle, brake, and drift as hold inputs', () => {
