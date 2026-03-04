@@ -8,17 +8,24 @@ export interface AudioStateSnapshot {
 export type UiClickTone = 'primary' | 'secondary' | 'toggle';
 
 const UI_CLICK_COOLDOWN_MS = 50;
+const STANDBY_TRACK_RELATIVE_URL = 'assets/audio/Pixel_Pavement.mp3';
+const STANDBY_LOOP_GAIN = 0.14;
 
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private gameplayGateGain: GainNode | null = null;
   private uiGain: GainNode | null = null;
+  private standbyGain: GainNode | null = null;
   private bgmGain: GainNode | null = null;
   private engineGain: GainNode | null = null;
   private skidGain: GainNode | null = null;
   private engineOsc: OscillatorNode | null = null;
   private skidNoiseSource: AudioBufferSourceNode | null = null;
+  private standbySource: AudioBufferSourceNode | null = null;
+  private standbyBuffer: AudioBuffer | null = null;
+  private standbyLoadPromise: Promise<AudioBuffer | null> | null = null;
+  private standbyLoopActive = false;
   private muted = false;
   private paused = false;
   private masterVolume = 0.6;
@@ -43,6 +50,9 @@ export class AudioManager {
     }
     this.updateMasterGain();
     this.updateGameplayGateGain();
+    if (this.standbyLoopActive) {
+      void this.ensureStandbyLoop();
+    }
   }
 
   setMuted(muted: boolean): void {
@@ -61,6 +71,16 @@ export class AudioManager {
       this.engineGain.gain.setValueAtTime(0, now);
       this.skidGain.gain.setValueAtTime(0, now);
     }
+  }
+
+  setStandbyLoopActive(active: boolean): void {
+    if (this.standbyLoopActive === active) return;
+    this.standbyLoopActive = active;
+    if (!active) {
+      this.stopStandbyLoop();
+      return;
+    }
+    void this.ensureStandbyLoop();
   }
 
   isMuted(): boolean {
@@ -188,6 +208,7 @@ export class AudioManager {
   }
 
   dispose(): void {
+    this.stopStandbyLoop();
     try {
       this.skidNoiseSource?.stop();
     } catch {
@@ -219,6 +240,11 @@ export class AudioManager {
     uiGain.gain.value = 0.22;
     uiGain.connect(master);
     this.uiGain = uiGain;
+
+    const standbyGain = ctx.createGain();
+    standbyGain.gain.value = STANDBY_LOOP_GAIN;
+    standbyGain.connect(master);
+    this.standbyGain = standbyGain;
 
     const bgmGain = ctx.createGain();
     bgmGain.gain.value = 0.028;
@@ -320,5 +346,71 @@ export class AudioManager {
     amp.connect(this.uiGain);
     osc.start(now);
     osc.stop(now + durationSec + 0.02);
+  }
+
+  private async ensureStandbyLoop(): Promise<void> {
+    if (!this.standbyLoopActive || !this.ctx || !this.standbyGain) return;
+    if (this.ctx.state !== 'running') return;
+    if (this.standbySource) return;
+
+    const buffer = await this.getStandbyBuffer();
+    if (!buffer || !this.standbyLoopActive || !this.ctx || !this.standbyGain || this.standbySource) {
+      return;
+    }
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(this.standbyGain);
+    source.start();
+    source.onended = () => {
+      if (this.standbySource === source) {
+        this.standbySource = null;
+      }
+    };
+    this.standbySource = source;
+  }
+
+  private async getStandbyBuffer(): Promise<AudioBuffer | null> {
+    if (this.standbyBuffer) return this.standbyBuffer;
+    if (!this.ctx) return null;
+    if (this.standbyLoadPromise) return this.standbyLoadPromise;
+
+    this.standbyLoadPromise = fetch(this.getStandbyTrackUrl(), { cache: 'force-cache' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`failed to fetch standby track (${response.status})`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        if (!this.ctx) return null;
+        const decoded = await this.ctx.decodeAudioData(arrayBuffer);
+        this.standbyBuffer = decoded;
+        return decoded;
+      })
+      .catch((error) => {
+        console.warn('[AudioManager] standby loop load failed:', error);
+        return null;
+      })
+      .finally(() => {
+        this.standbyLoadPromise = null;
+      });
+
+    return this.standbyLoadPromise;
+  }
+
+  private getStandbyTrackUrl(): string {
+    const base = import.meta.env.BASE_URL ?? '/';
+    return `${base}${STANDBY_TRACK_RELATIVE_URL}`;
+  }
+
+  private stopStandbyLoop(): void {
+    if (!this.standbySource) return;
+    try {
+      this.standbySource.stop();
+    } catch {
+      // noop
+    }
+    this.standbySource.disconnect();
+    this.standbySource = null;
   }
 }
