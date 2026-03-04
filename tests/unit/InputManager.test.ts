@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InputManager } from '../../src/input/InputManager';
+import type { InputState } from '../../src/types/game';
 
 function keyDown(input: InputManager, code: string, repeat = false): void {
   (input as unknown as { onKeyDown: (event: KeyboardEvent) => void }).onKeyDown({
@@ -87,11 +88,59 @@ describe('InputManager', () => {
     expect(snap.steer).toBe(1);
   });
 
+  it('treats throttle, brake, and drift as hold inputs', () => {
+    const input = new InputManager();
+
+    keyDown(input, 'KeyW');
+    expect(input.snapshot().throttle).toBe(1);
+    keyUp(input, 'KeyW');
+    expect(input.snapshot().throttle).toBe(0);
+
+    keyDown(input, 'KeyS');
+    expect(input.snapshot().brake).toBe(1);
+    keyUp(input, 'KeyS');
+    expect(input.snapshot().brake).toBe(0);
+
+    keyDown(input, 'Space');
+    expect(input.snapshot().handbrake).toBe(true);
+    keyUp(input, 'Space');
+    expect(input.snapshot().handbrake).toBe(false);
+  });
+
   it('cancels steering when left and right are pressed together', () => {
     const input = new InputManager();
     keyDown(input, 'KeyA');
     keyDown(input, 'KeyD');
     expect(input.snapshot().steer).toBe(0);
+  });
+
+  it('exposes pressed key labels in debug state', () => {
+    const input = new InputManager();
+    keyDown(input, 'KeyW');
+    keyDown(input, 'ArrowRight');
+    const debug = input.getDebugState(input.peekSnapshot());
+    expect(debug.pressedKeys).toContain('W');
+    expect(debug.pressedKeys).toContain('→');
+    expect(debug.warnings.length).toBe(0);
+  });
+
+  it('emits warnings when provided snapshot is inconsistent with active inputs', () => {
+    const input = new InputManager();
+    keyDown(input, 'KeyW');
+    keyDown(input, 'KeyA');
+    const inconsistent: InputState = {
+      throttle: 0,
+      brake: 0,
+      steer: 0,
+      handbrake: false,
+      boost: false,
+      pause: false,
+      mute: false,
+    };
+    const debug = input.getDebugState(inconsistent);
+    expect(debug.warnings.length).toBeGreaterThan(0);
+    expect(debug.warnings.some((warning) => warning.includes('throttle=0'))).toBe(true);
+    expect(debug.warnings.some((warning) => warning.includes('steer'))).toBe(true);
   });
 
   it('treats touch boost as one-shot input', () => {

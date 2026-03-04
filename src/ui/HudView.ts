@@ -1,6 +1,7 @@
 import { formatMs } from '../core/math';
 import type { RaceSnapshot } from '../types/game';
 import type { InputManager, TouchAction } from '../input/InputManager';
+import { buildKeyboardGuideRows, buildTouchGuideRows, type InputGuideRow } from '../input/bindings';
 
 interface HudCallbacks {
   onPauseButton: () => void;
@@ -9,6 +10,7 @@ interface HudCallbacks {
 }
 
 type FlashKind = 'go' | 'lap' | 'hit' | 'finish' | 'overtake' | 'warn';
+type InputGuideMode = 'keyboard' | 'touch';
 
 export class HudView {
   readonly root: HTMLDivElement;
@@ -35,6 +37,10 @@ export class HudView {
   private readonly driftBadgeEl: HTMLDivElement;
   private readonly driftLinesEl: HTMLDivElement;
   private readonly flashEl: HTMLDivElement;
+  private readonly keybindsSectionEl: HTMLElement;
+  private readonly keybindListEl: HTMLUListElement;
+  private readonly touchGuideSectionEl: HTMLElement;
+  private readonly touchGuideListEl: HTMLUListElement;
   private readonly touchSteerZone: HTMLDivElement | null;
   private readonly touchSteerThumb: HTMLDivElement | null;
   private readonly touchButtons = new Map<TouchAction, HTMLButtonElement>();
@@ -44,6 +50,7 @@ export class HudView {
   private lastPlayerRank: number | null = null;
   private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
+  private inputGuideMode: InputGuideMode = 'keyboard';
 
   constructor(parent: HTMLElement, private readonly shell: HTMLElement) {
     this.root = document.createElement('div');
@@ -80,17 +87,13 @@ export class HudView {
         </section>
       </div>
 
-      <section class="hud-keybinds panel" aria-label="controls">
-        <h3>KEYS</h3>
-        <ul class="keybind-list">
-          <li><span class="kb-key">W / ↑</span><span class="kb-desc">アクセル</span></li>
-          <li><span class="kb-key">A / ←</span><span class="kb-desc">左に曲がる</span></li>
-          <li><span class="kb-key">D / →</span><span class="kb-desc">右に曲がる</span></li>
-          <li><span class="kb-key">S / ↓</span><span class="kb-desc">ブレーキ</span></li>
-          <li><span class="kb-key">Space</span><span class="kb-desc">ドリフト</span></li>
-          <li><span class="kb-key">Shift</span><span class="kb-desc">OVERDRIVE</span></li>
-          <li><span class="kb-key">Esc / M</span><span class="kb-desc">ポーズ / ミュート</span></li>
-        </ul>
+      <section id="hudKeybinds" class="hud-keybinds panel" aria-label="keyboard controls">
+        <h3>KEYBOARD</h3>
+        <ul id="hudKeybindList" class="keybind-list"></ul>
+      </section>
+      <section id="hudTouchGuide" class="hud-touch-guide panel hidden" aria-label="touch controls">
+        <h3>TOUCH</h3>
+        <ul id="hudTouchGuideList" class="keybind-list"></ul>
       </section>
 
       <div class="speed-dial panel" id="speedDial">
@@ -157,8 +160,13 @@ export class HudView {
     this.driftBadgeEl = this.root.querySelector('#driftBadge') as HTMLDivElement;
     this.driftLinesEl = this.root.querySelector('#driftLines') as HTMLDivElement;
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
+    this.keybindsSectionEl = this.root.querySelector('#hudKeybinds') as HTMLElement;
+    this.keybindListEl = this.root.querySelector('#hudKeybindList') as HTMLUListElement;
+    this.touchGuideSectionEl = this.root.querySelector('#hudTouchGuide') as HTMLElement;
+    this.touchGuideListEl = this.root.querySelector('#hudTouchGuideList') as HTMLUListElement;
 
     this.buildTouchControls();
+    this.renderInputGuides();
     this.touchSteerZone = this.root.querySelector('#touchSteerZone');
     this.touchSteerThumb = this.root.querySelector('#touchSteerThumb');
 
@@ -212,6 +220,13 @@ export class HudView {
     this.touchControls.classList.toggle('hidden', !enabled);
     this.mobileBanner.classList.toggle('hidden', !enabled);
     this.root.classList.toggle('touch-layout', enabled);
+    this.setInputGuideMode(enabled ? 'touch' : 'keyboard');
+  }
+
+  setInputGuideMode(mode: InputGuideMode): void {
+    if (this.inputGuideMode === mode) return;
+    this.inputGuideMode = mode;
+    this.renderInputGuides();
   }
 
   bindTouchControls(input: InputManager): void {
@@ -420,6 +435,33 @@ export class HudView {
 
       li.append(rank, name, lap);
       this.leaderboardList.append(li);
+    }
+  }
+
+  private renderInputGuides(): void {
+    const keyboardRows = buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift', 'boost', 'pause', 'mute']);
+    this.renderGuideList(this.keybindListEl, keyboardRows);
+
+    const touchRows = buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost', 'pause']);
+    this.renderGuideList(this.touchGuideListEl, touchRows);
+
+    const touchMode = this.inputGuideMode === 'touch';
+    this.keybindsSectionEl.classList.toggle('hidden', touchMode);
+    this.touchGuideSectionEl.classList.toggle('hidden', !touchMode);
+  }
+
+  private renderGuideList(target: HTMLUListElement, rows: readonly InputGuideRow[]): void {
+    target.textContent = '';
+    for (const row of rows) {
+      const li = document.createElement('li');
+      const key = document.createElement('span');
+      key.className = 'kb-key';
+      key.textContent = row.keyText;
+      const desc = document.createElement('span');
+      desc.className = 'kb-desc';
+      desc.textContent = row.actionText;
+      li.append(key, desc);
+      target.append(li);
     }
   }
 }

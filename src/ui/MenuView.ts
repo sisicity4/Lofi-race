@@ -1,5 +1,6 @@
 import type { GraphicsQuality, SettingsData } from '../types/game';
 import type { TrackCatalogEntry } from '../track/TrackLoader';
+import { buildKeyboardGuideRows, buildTouchGuideRows } from '../input/bindings';
 
 interface MenuCallbacks {
   onStart: () => void;
@@ -10,6 +11,8 @@ interface MenuCallbacks {
   onVolumeChange: (volume: number) => void;
 }
 
+type InputGuideMode = 'keyboard' | 'touch';
+
 export class MenuView {
   readonly root: HTMLDivElement;
   private readonly startButton: HTMLButtonElement;
@@ -19,9 +22,11 @@ export class MenuView {
   private readonly muteButton: HTMLButtonElement;
   private readonly volumeInput: HTMLInputElement;
   private readonly subtitle: HTMLParagraphElement;
+  private readonly controlPills: HTMLDivElement;
   private callbacks: Partial<MenuCallbacks> = {};
   private loading = false;
   private portraitStartBlocked = false;
+  private inputGuideMode: InputGuideMode = 'keyboard';
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -39,13 +44,7 @@ export class MenuView {
           <p id="menuSubtitle" class="small menu-substatus">準備OK</p>
         </div>
 
-        <div class="control-pills" aria-label="操作の要点">
-          <div class="control-pill">W / ↑ アクセル</div>
-          <div class="control-pill">A / ← 左に曲がる</div>
-          <div class="control-pill">D / → 右に曲がる</div>
-          <div class="control-pill">S / ↓ ブレーキ</div>
-          <div class="control-pill">Space ドリフト</div>
-        </div>
+        <div id="menuControlPills" class="control-pills" aria-label="操作の要点"></div>
 
         <div class="panel menu-settings">
           <div class="menu-settings-head">
@@ -81,6 +80,7 @@ export class MenuView {
     this.muteButton = this.root.querySelector('#muteButton') as HTMLButtonElement;
     this.volumeInput = this.root.querySelector('#volumeInput') as HTMLInputElement;
     this.subtitle = this.root.querySelector('#menuSubtitle') as HTMLParagraphElement;
+    this.controlPills = this.root.querySelector('#menuControlPills') as HTMLDivElement;
 
     this.startButton.addEventListener('click', () => this.callbacks.onStart?.());
     this.assistLandscapeButton.addEventListener('click', () => this.callbacks.onAssistLandscape?.());
@@ -90,6 +90,7 @@ export class MenuView {
     });
     this.muteButton.addEventListener('click', () => this.callbacks.onMuteToggle?.());
     this.volumeInput.addEventListener('input', () => this.callbacks.onVolumeChange?.(Number(this.volumeInput.value)));
+    this.renderControlPills();
   }
 
   bind(callbacks: MenuCallbacks): void {
@@ -139,6 +140,12 @@ export class MenuView {
     this.assistLandscapeButton.classList.toggle('hidden', !visible);
   }
 
+  setInputGuideMode(mode: InputGuideMode): void {
+    if (this.inputGuideMode === mode) return;
+    this.inputGuideMode = mode;
+    this.renderControlPills();
+  }
+
   setError(message: string): void {
     this.root.innerHTML = `
       <div class="panel center-card error-card">
@@ -156,5 +163,19 @@ export class MenuView {
   private syncStartButtonState(): void {
     this.startButton.disabled = this.loading || this.portraitStartBlocked;
     this.startButton.textContent = this.loading ? '読み込み中...' : this.portraitStartBlocked ? '横画面で開始' : 'レース開始';
+  }
+
+  private renderControlPills(): void {
+    const rows = this.inputGuideMode === 'touch'
+      ? buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost'])
+      : buildKeyboardGuideRows(['throttle', 'steerLeft', 'steerRight', 'brake', 'drift']);
+
+    this.controlPills.textContent = '';
+    for (const row of rows) {
+      const pill = document.createElement('div');
+      pill.className = 'control-pill';
+      pill.textContent = `${row.keyText} ${row.actionText}`;
+      this.controlPills.append(pill);
+    }
   }
 }

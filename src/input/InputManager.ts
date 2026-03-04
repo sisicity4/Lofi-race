@@ -1,11 +1,25 @@
 import { clamp } from '../core/math';
 import type { InputState } from '../types/game';
+import {
+  HANDLED_KEY_CODES,
+  getKeyboardBinding,
+  isCodeBoundToKeyboardAction,
+  keyLabelFromCode,
+  type KeyboardActionId,
+} from './bindings';
 
 export type TouchAction = 'left' | 'right' | 'throttle' | 'brake' | 'handbrake' | 'boost' | 'pause' | 'mute';
 
 interface ButtonBinding {
   element: HTMLElement;
   action: TouchAction;
+}
+
+export interface InputDebugState {
+  readonly snapshot: InputState;
+  readonly pressedKeys: readonly string[];
+  readonly activeTouchActions: readonly TouchAction[];
+  readonly warnings: readonly string[];
 }
 
 export class InputManager {
@@ -30,27 +44,13 @@ export class InputManager {
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const code = event.code;
-    if ([
-      'ArrowUp',
-      'ArrowDown',
-      'ArrowLeft',
-      'ArrowRight',
-      'Space',
-      'ShiftLeft',
-      'ShiftRight',
-      'KeyW',
-      'KeyA',
-      'KeyS',
-      'KeyD',
-      'Escape',
-      'KeyM',
-    ].includes(code)) {
+    if (HANDLED_KEY_CODES.has(code)) {
       event.preventDefault();
     }
     this.keyDown.add(code);
-    if (code === 'Escape' && !event.repeat) this.oneShot.pause = true;
-    if (code === 'KeyM' && !event.repeat) this.oneShot.mute = true;
-    if ((code === 'ShiftLeft' || code === 'ShiftRight') && !event.repeat) this.oneShot.boost = true;
+    if (isCodeBoundToKeyboardAction('pause', code) && !event.repeat) this.oneShot.pause = true;
+    if (isCodeBoundToKeyboardAction('mute', code) && !event.repeat) this.oneShot.mute = true;
+    if (isCodeBoundToKeyboardAction('boost', code) && !event.repeat) this.oneShot.boost = true;
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
@@ -73,27 +73,25 @@ export class InputManager {
   }
 
   snapshot(): InputState {
-    const throttleKey = this.keyDown.has('KeyW') || this.keyDown.has('ArrowUp');
-    const brakeKey = this.keyDown.has('KeyS') || this.keyDown.has('ArrowDown');
-    const leftKey = this.keyDown.has('KeyA') || this.keyDown.has('ArrowLeft');
-    const rightKey = this.keyDown.has('KeyD') || this.keyDown.has('ArrowRight');
-    const handbrakeKey = this.keyDown.has('Space');
+    return this.composeSnapshot(true);
+  }
 
-    // Positive steer turns right, so map left to -1 and right to +1 for intuitive WASD/Arrow control.
-    const digitalSteer = clamp((leftKey || this.touchActive.left ? -1 : 0) + (rightKey || this.touchActive.right ? 1 : 0), -1, 1);
-    const steer = Math.abs(this.touchSteerAxis) > 0.001 ? this.touchSteerAxis : digitalSteer;
-    const snapshot: InputState = {
-      throttle: throttleKey || this.touchActive.throttle ? 1 : 0,
-      brake: brakeKey || this.touchActive.brake ? 1 : 0,
-      steer,
-      handbrake: handbrakeKey || this.touchActive.handbrake,
-      boost: this.oneShot.boost,
-      pause: this.oneShot.pause,
-      mute: this.oneShot.mute,
+  peekSnapshot(): InputState {
+    return this.composeSnapshot(false);
+  }
+
+  getDebugState(snapshot: InputState = this.peekSnapshot()): InputDebugState {
+    const pressedKeys = Array.from(this.keyDown)
+      .sort()
+      .map((code) => keyLabelFromCode(code));
+    const activeTouchActions = (Object.keys(this.touchActive) as TouchAction[]).filter((action) => this.touchActive[action]);
+    const warnings = this.computeConsistencyWarnings(snapshot);
+    return {
+      snapshot,
+      pressedKeys,
+      activeTouchActions,
+      warnings,
     };
-
-    this.oneShot = { pause: false, mute: false, boost: false };
-    return snapshot;
   }
 
   isTouchLikely(): boolean {
@@ -233,5 +231,79 @@ export class InputManager {
       this.joystickThumbEl.style.transform = 'translate(0px, 0px)';
       this.joystickThumbEl.classList.remove('active');
     }
+  }
+
+  private composeSnapshot(consumeOneShot: boolean): InputState {
+    const throttleKey = this.isKeyboardActionPressed('throttle');
+    const brakeKey = this.isKeyboardActionPressed('brake');
+    const leftKey = this.isKeyboardActionPressed('steerLeft');
+    const rightKey = this.isKeyboardActionPressed('steerRight');
+    const handbrakeKey = this.isKeyboardActionPressed('drift');
+
+    // Positive steer turns right.
+    const digitalSteer = clamp((leftKey || this.touchActive.left ? -1 : 0) + (rightKey || this.touchActive.right ? 1 : 0), -1, 1);
+    const baseSteer = Math.abs(this.touchSteerAxis) > 0.001 ? this.touchSteerAxis : digitalSteer;
+    const steer = Math.abs(baseSteer) < 1e-6 ? 0 : baseSteer;
+    const snapshot: InputState = {
+      throttle: throttleKey || this.touchActive.throttle ? 1 : 0,
+      brake: brakeKey || this.touchActive.brake ? 1 : 0,
+      steer,
+      handbrake: handbrakeKey || this.touchActive.handbrake,
+      boost: this.oneShot.boost,
+      pause: this.oneShot.pause,
+      mute: this.oneShot.mute,
+    };
+
+    if (consumeOneShot) {
+      this.oneShot = { pause: false, mute: false, boost: false };
+    }
+    return snapshot;
+  }
+
+  private isKeyboardActionPressed(action: KeyboardActionId): boolean {
+    const binding = getKeyboardBinding(action);
+    for (const code of binding.codes) {
+      if (this.keyDown.has(code)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private computeConsistencyWarnings(snapshot: InputState): string[] {
+    const warnings: string[] = [];
+
+    const throttleExpected = this.isKeyboardActionPressed('throttle') || this.touchActive.throttle;
+    if (throttleExpected && snapshot.throttle <= 0) {
+      warnings.push('アクセル入力が押下中なのに throttle=0 です');
+    }
+
+    const brakeExpected = this.isKeyboardActionPressed('brake') || this.touchActive.brake;
+    if (brakeExpected && snapshot.brake <= 0) {
+      warnings.push('ブレーキ入力が押下中なのに brake=0 です');
+    }
+
+    const driftExpected = this.isKeyboardActionPressed('drift') || this.touchActive.handbrake;
+    if (driftExpected && !snapshot.handbrake) {
+      warnings.push('ドリフト入力が押下中なのに handbrake=false です');
+    }
+
+    const joystickSteerActive = Math.abs(this.touchSteerAxis) > 0.001;
+    const leftExpected = this.isKeyboardActionPressed('steerLeft') || this.touchActive.left;
+    const rightExpected = this.isKeyboardActionPressed('steerRight') || this.touchActive.right;
+
+    if (!joystickSteerActive) {
+      if (leftExpected && !rightExpected && snapshot.steer >= -0.001) {
+        warnings.push('左入力中なのに steer が左方向ではありません');
+      }
+      if (rightExpected && !leftExpected && snapshot.steer <= 0.001) {
+        warnings.push('右入力中なのに steer が右方向ではありません');
+      }
+      if (leftExpected && rightExpected && Math.abs(snapshot.steer) > 0.001) {
+        warnings.push('左右同時入力なのに steer が0になっていません');
+      }
+    }
+
+    return warnings;
   }
 }

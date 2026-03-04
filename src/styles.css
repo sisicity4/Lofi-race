@@ -483,7 +483,8 @@ input[type='range'] {
   pointer-events: auto;
 }
 
-.hud-keybinds {
+.hud-keybinds,
+.hud-touch-guide {
   position: absolute;
   left: max(12px, env(safe-area-inset-left));
   bottom: calc(16px + env(safe-area-inset-bottom));
@@ -493,7 +494,8 @@ input[type='range'] {
   background: linear-gradient(180deg, rgba(4, 17, 28, 0.62), rgba(3, 12, 20, 0.78));
 }
 
-.hud-keybinds h3 {
+.hud-keybinds h3,
+.hud-touch-guide h3 {
   margin: 0 0 7px;
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -912,6 +914,7 @@ input[type='range'] {
 .hud-focus,
 .hud-side,
 .hud-keybinds,
+.hud-touch-guide,
 .speed-dial,
 .drift-badge,
 .message-banner {
@@ -1300,7 +1303,8 @@ input[type='range'] {
     top: calc(110px + env(safe-area-inset-top));
   }
 
-  .hud-keybinds {
+  .hud-keybinds,
+  .hud-touch-guide {
     width: min(312px, 46vw);
   }
 
@@ -1347,7 +1351,7 @@ input[type='range'] {
     gap: 0;
   }
 
-  .hud-keybinds {
+  .hud.touch-layout .hud-keybinds {
     display: none;
   }
 
@@ -1459,6 +1463,13 @@ input[type='range'] {
 
   .hud.touch-layout .focus-rank {
     font-size: 20px;
+  }
+
+  .hud.touch-layout .hud-touch-guide {
+    top: calc(96px + env(safe-area-inset-top));
+    bottom: auto;
+    width: min(262px, calc(100vw - 170px));
+    max-width: calc(100vw - 170px);
   }
 
   .hud.touch-layout .speed-dial {
@@ -1611,7 +1622,8 @@ input[type='range'] {
     bottom: calc(238px + env(safe-area-inset-bottom));
   }
 
-  .hud-keybinds {
+  .hud-keybinds,
+  .hud-touch-guide {
     width: min(280px, 48vw);
   }
 }

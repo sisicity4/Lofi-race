@@ -6,7 +6,7 @@ import { DEFAULT_GAME_CONFIG, getVehicleParamsForTheme } from '../data/config';
 import { SettingsStore } from '../data/SettingsStore';
 import type { GameEvents } from '../game/GameState';
 import { RaceManager } from '../game/RaceManager';
-import { InputManager } from '../input/InputManager';
+import { InputManager, type InputDebugState } from '../input/InputManager';
 import { CameraRig } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { SceneBuilder } from '../render/SceneBuilder';
@@ -75,6 +75,9 @@ export class App {
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
   private lastFeedbackKey = '';
+  private lastInputWarningsKey = '';
+  private lastInputDebug: InputDebugState | null = null;
+  private inputGuideTouchMode: boolean | null = null;
   private portraitPauseApplied = false;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
@@ -129,6 +132,8 @@ export class App {
       this.debugEl.style.padding = '8px 10px';
       this.debugEl.style.fontSize = '11px';
       this.debugEl.style.pointerEvents = 'none';
+      this.debugEl.style.whiteSpace = 'pre-line';
+      this.debugEl.style.maxWidth = '360px';
       this.uiLayer.append(this.debugEl);
     }
 
@@ -139,6 +144,7 @@ export class App {
   async mount(): Promise<void> {
     this.menuView.setSettings(this.settings);
     this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
+    this.syncInputGuideMode();
     this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
     this.hudView.bindTouchControls(this.input);
     this.input.attach();
@@ -360,7 +366,15 @@ export class App {
     this.refreshOrientationGuard();
     this.enforceMobilePortraitBlock();
 
-    const input = this.isPortraitBlockedOnTouchDevice() ? { ...ZERO_INPUT } : this.input.snapshot();
+    const portraitBlocked = this.isPortraitBlockedOnTouchDevice();
+    const debugInputSnapshot = this.debugEnabled && !portraitBlocked ? this.input.peekSnapshot() : null;
+    const input = portraitBlocked ? { ...ZERO_INPUT } : this.input.snapshot();
+    if (this.debugEnabled && debugInputSnapshot) {
+      this.updateInputDebug(this.input.getDebugState(debugInputSnapshot));
+    } else if (this.debugEnabled) {
+      this.lastInputDebug = null;
+      this.lastInputWarningsKey = '';
+    }
     if (input.mute) {
       this.toggleMute();
     }
@@ -453,7 +467,21 @@ export class App {
       this.hudView.update(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
       if (this.debugEl) {
         const p = this.raceManager.getPlayerVehicle();
-        this.debugEl.textContent = `phase=${this.lastSnapshot.race.phase} speed=${(Math.abs(p.speedForward) * 3.6).toFixed(0)}km/h slip=${p.slipRatio.toFixed(2)} dpr=${this.renderer.getPixelRatio().toFixed(2)}`;
+        const lines = [
+          `phase=${this.lastSnapshot.race.phase} speed=${(Math.abs(p.speedForward) * 3.6).toFixed(0)}km/h slip=${p.slipRatio.toFixed(2)} dpr=${this.renderer.getPixelRatio().toFixed(2)}`,
+        ];
+        if (this.lastInputDebug) {
+          lines.push(`Input: ${this.lastInputDebug.pressedKeys.length > 0 ? this.lastInputDebug.pressedKeys.join(', ') : '(none)'}`);
+          lines.push(`Touch: ${this.lastInputDebug.activeTouchActions.length > 0 ? this.lastInputDebug.activeTouchActions.join(', ') : '(none)'}`);
+          lines.push(
+            `State: T=${this.lastInputDebug.snapshot.throttle.toFixed(0)} B=${this.lastInputDebug.snapshot.brake.toFixed(0)} ` +
+            `Steer=${this.lastInputDebug.snapshot.steer.toFixed(2)} Drift=${this.lastInputDebug.snapshot.handbrake ? 'ON' : 'OFF'}`,
+          );
+          if (this.lastInputDebug.warnings.length > 0) {
+            lines.push(`Warn: ${this.lastInputDebug.warnings.join(' | ')}`);
+          }
+        }
+        this.debugEl.textContent = lines.join('\n');
       }
     }
   }
@@ -851,6 +879,7 @@ export class App {
   }
 
   private refreshOrientationGuard(): void {
+    this.syncInputGuideMode();
     const isPortraitOnTouch = this.isPortraitBlockedOnTouchDevice();
     const phase = this.raceManager?.getPhase() ?? 'menu';
     const isRacePhase = phase !== 'menu';
@@ -967,9 +996,29 @@ export class App {
   }
 
   private shouldUseMobileTouchUI(): boolean {
-    if (!this.input.isTouchLikely()) return false;
     const coarse = matchMedia('(pointer: coarse)').matches;
-    const smallViewport = Math.max(window.innerWidth, window.innerHeight) <= 1200;
-    return coarse || smallViewport;
+    const noHover = matchMedia('(hover: none)').matches;
+    const hasTouch = navigator.maxTouchPoints > 0;
+    return coarse || (hasTouch && noHover);
+  }
+
+  private syncInputGuideMode(): void {
+    const touchMode = this.shouldUseMobileTouchUI();
+    if (this.inputGuideTouchMode === touchMode) return;
+    this.inputGuideTouchMode = touchMode;
+    this.menuView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
+    this.hudView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
+  }
+
+  private updateInputDebug(state: InputDebugState): void {
+    this.lastInputDebug = state;
+    const key = state.warnings.join('|');
+    if (!key) {
+      this.lastInputWarningsKey = '';
+      return;
+    }
+    if (key === this.lastInputWarningsKey) return;
+    this.lastInputWarningsKey = key;
+    console.warn('[InputDebug] UI説明と入力状態の不一致を検出:', state.warnings);
   }
 }
