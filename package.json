@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium"
   },
   "dependencies": {
     "three": "^0.180.0"

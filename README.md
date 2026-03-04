@@ -4,6 +4,7 @@
 
 ## Live URL
 - https://lofi-race.vercel.app
+- https://sisicity4.github.io/Lofi-race/
 
 ## Tech
 - Vite
@@ -20,9 +21,9 @@ npm run dev
 
 ## Controls
 ### Desktop
-- `WASD` / `Arrow Keys`: アクセル / ブレーキ / ステア
+- `WASD` / `Arrow Keys`: アクセル / ブレーキ / ステア（初期設定: 左右反転ON）
 - `Space`: ドリフト補助
-- `R`: リセット
+- `Shift`: OVERDRIVE
 - `Esc`: ポーズ
 - `M`: ミュート
 
@@ -39,3 +40,6 @@ npm run dev
 - `npm run build`
 - `npm run test`
 - `npm run test:e2e`
+
+## License
+MIT

@@ -78,7 +78,6 @@ export class App {
   private lastInputWarningsKey = '';
   private lastInputDebug: InputDebugState | null = null;
   private inputGuideTouchMode: boolean | null = null;
-  private portraitPauseApplied = false;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
 
@@ -339,7 +338,6 @@ export class App {
     this.input.clearAll();
     this.clearTransientFx();
     this.lastFeedbackKey = '';
-    this.portraitPauseApplied = false;
 
     if (fromRetry) {
       this.raceManager.restartRace();
@@ -361,7 +359,6 @@ export class App {
     this.input.clearAll();
     this.clearTransientFx();
     this.lastFeedbackKey = '';
-    this.portraitPauseApplied = false;
     this.lastSnapshot = this.raceManager.getSnapshot();
     this.refreshOrientationGuard();
   }
@@ -452,7 +449,7 @@ export class App {
     } catch (error) {
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
-      this.lastMenuPortraitBlocked = this.isPortraitBlockedOnTouchDevice();
+      this.lastMenuPortraitBlocked = this.isPortraitOnTouchDevice();
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
       this.menuView.setLoading(false);
@@ -897,26 +894,29 @@ export class App {
     }
   }
 
-  private isPortraitBlockedOnTouchDevice(): boolean {
+  private isPortraitOnTouchDevice(): boolean {
     return this.shouldUseMobileTouchUI() && window.innerHeight > window.innerWidth;
+  }
+
+  private isPortraitBlockedOnTouchDevice(): boolean {
+    return false;
   }
 
   private refreshOrientationGuard(): void {
     this.syncInputGuideMode();
-    const isPortraitOnTouch = this.isPortraitBlockedOnTouchDevice();
+    const isPortraitOnTouch = this.isPortraitOnTouchDevice();
     const phase = this.raceManager?.getPhase() ?? 'menu';
-    const isRacePhase = phase !== 'menu';
-    const showOrientationGate = isPortraitOnTouch && isRacePhase;
+    const showOrientationGate = false;
 
     this.orientationGateEl.classList.toggle('hidden', !showOrientationGate);
     this.shell.classList.toggle('orientation-blocked', showOrientationGate);
-    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI() && !isPortraitOnTouch);
+    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
 
     if (phase === 'menu') {
-      this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI());
-      this.menuView.setPortraitStartBlocked(isPortraitOnTouch);
+      this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI() && isPortraitOnTouch);
+      this.menuView.setPortraitStartBlocked(false);
       if (this.lastMenuPortraitBlocked !== isPortraitOnTouch) {
-        this.menuView.setStatus(isPortraitOnTouch ? '横画面で開始できます / 設定はこのままでOK' : '準備OK');
+        this.menuView.setStatus(isPortraitOnTouch ? '縦画面でも開始できます（横画面推奨）' : '準備OK');
         this.lastMenuPortraitBlocked = isPortraitOnTouch;
       }
     } else {
@@ -929,28 +929,12 @@ export class App {
   }
 
   private enforceMobilePortraitBlock(): void {
-    if (!this.raceManager) return;
-    const blocked = this.isPortraitBlockedOnTouchDevice();
-    const phase = this.raceManager.getPhase();
-
-    if (blocked) {
-      this.input.clearAll();
-      if ((phase === 'racing' || phase === 'countdown') && !this.portraitPauseApplied) {
-        this.raceManager.togglePause();
-        this.portraitPauseApplied = true;
-      }
-      return;
-    }
-
-    if (this.portraitPauseApplied && phase === 'paused') {
-      this.raceManager.togglePause();
-    }
-    this.portraitPauseApplied = false;
+    // Portrait is allowed; keep this hook for future policy toggles.
   }
 
   private async handleAssistLandscape(): Promise<void> {
     const result = await this.tryForceLandscape(true);
-    if (!this.isPortraitBlockedOnTouchDevice()) {
+    if (!this.isPortraitOnTouchDevice()) {
       this.menuView.setStatus('準備OK');
       this.lastMenuPortraitBlocked = false;
       return;
@@ -982,7 +966,7 @@ export class App {
       Boolean(orientationApi) &&
       typeof lockOrientation === 'function';
 
-    if (fromUserGesture && this.isPortraitBlockedOnTouchDevice() && document.fullscreenElement == null) {
+    if (fromUserGesture && this.isPortraitOnTouchDevice() && document.fullscreenElement == null) {
       try {
         await this.shell.requestFullscreen({ navigationUI: 'hide' });
       } catch {
@@ -997,7 +981,7 @@ export class App {
     }
 
     try {
-      if (this.isPortraitBlockedOnTouchDevice()) {
+      if (this.isPortraitOnTouchDevice()) {
         await lockOrientation?.call(orientationApi, 'landscape');
       }
       this.orientationGateHint.textContent = '横画面ロックを試行しました。反映されない場合は端末を横向きにしてください。';

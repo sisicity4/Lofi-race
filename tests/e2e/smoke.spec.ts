@@ -22,7 +22,6 @@ test.describe('mobile', () => {
   test.use({
     viewport: { width: 844, height: 390 },
     hasTouch: true,
-    isMobile: true,
   });
 
   test('can start race in landscape touch layout', async ({ page }) => {
@@ -57,14 +56,14 @@ test.describe('mobile', () => {
     expect(box!.y).toBeLessThan(390 * 0.4);
   });
 
-  test('auto pauses on portrait mid-race and resumes after landscape restore', async ({ page }) => {
+  test('keeps race playable when rotating to portrait', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'レース開始' }).click();
     await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByText('横画面でプレイしてください')).toBeVisible();
-    await expect(page.locator('#pausePanel')).toBeVisible();
+    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+    await expect(page.locator('#pausePanel')).toBeHidden();
 
     await page.setViewportSize({ width: 844, height: 390 });
     await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
@@ -76,10 +75,9 @@ test.describe('mobile portrait title flow', () => {
   test.use({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
-    isMobile: true,
   });
 
-  test('keeps title usable, blocks start, and shows landscape assist', async ({ page }) => {
+  test('keeps title usable in portrait and allows start', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
 
@@ -87,21 +85,17 @@ test.describe('mobile portrait title flow', () => {
     const assistButton = page.locator('#assistLandscapeButton');
 
     await expect(startButton).toBeVisible();
-    await expect(startButton).toBeDisabled();
-    await expect(startButton).toHaveText('横画面で開始');
+    await expect(startButton).toBeEnabled();
+    await expect(startButton).toHaveText('レース開始');
     await expect(assistButton).toBeVisible();
     await expect(page.locator('#trackSelect')).toBeEnabled();
   });
 
-  test('enables start after rotating back to landscape', async ({ page }) => {
+  test('can start race directly from portrait', async ({ page }) => {
     await page.goto('/');
 
     const startButton = page.locator('#startButton');
-    await expect(startButton).toBeDisabled();
-
-    await page.setViewportSize({ width: 844, height: 390 });
     await expect(startButton).toBeEnabled();
-    await expect(startButton).toHaveText('レース開始');
     await startButton.click();
 
     await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
