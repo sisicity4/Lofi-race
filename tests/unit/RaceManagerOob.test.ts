@@ -12,6 +12,7 @@ const NO_INPUT: InputState = {
   steer: 0,
   handbrake: false,
   boost: false,
+  boostHeld: false,
   pause: false,
   mute: false,
 };

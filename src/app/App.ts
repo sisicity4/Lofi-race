@@ -23,6 +23,7 @@ const ZERO_INPUT: InputState = {
   steer: 0,
   handbrake: false,
   boost: false,
+  boostHeld: false,
   pause: false,
   mute: false,
 };
@@ -538,7 +539,8 @@ export class App {
           lines.push(`Touch: ${this.lastInputDebug.activeTouchActions.length > 0 ? this.lastInputDebug.activeTouchActions.join(', ') : '(none)'}`);
           lines.push(
             `State: T=${this.lastInputDebug.snapshot.throttle.toFixed(0)} B=${this.lastInputDebug.snapshot.brake.toFixed(0)} ` +
-            `Steer=${this.lastInputDebug.snapshot.steer.toFixed(2)} Drift=${this.lastInputDebug.snapshot.handbrake ? 'ON' : 'OFF'}`,
+            `Steer=${this.lastInputDebug.snapshot.steer.toFixed(2)} Drift=${this.lastInputDebug.snapshot.handbrake ? 'ON' : 'OFF'} ` +
+            `Boost=${this.lastInputDebug.snapshot.boost ? 'ON' : 'OFF'} Hold=${this.lastInputDebug.snapshot.boostHeld ? 'ON' : 'OFF'}`,
           );
           if (this.lastInputDebug.warnings.length > 0) {
             lines.push(`Warn: ${this.lastInputDebug.warnings.join(' | ')}`);

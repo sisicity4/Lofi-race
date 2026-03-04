@@ -30,9 +30,10 @@ export class ArcadePhysics {
       Math.abs(forwardVel) > DRIFT_MIN_SPEED;
 
     const accelSurfaceMultiplier = offTrack ? params.offTrackSpeedMultiplier : 1;
-    let forwardAccel = input.throttle * params.accelForward * accelSurfaceMultiplier;
+    const accelMultiplier = Math.max(0, env.accelMultiplier);
+    let forwardAccel = input.throttle * params.accelForward * accelSurfaceMultiplier * accelMultiplier;
     if (boostActive && input.throttle > 0) {
-      forwardAccel += params.accelForward * (1.05 + state.driftBoostStrength * 2.35);
+      forwardAccel += params.accelForward * (1.05 + state.driftBoostStrength * 2.35) * accelMultiplier;
     }
     if (input.brake > 0) {
       if (forwardVel > 1) {

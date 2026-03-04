@@ -15,6 +15,7 @@ export const EMPTY_INPUT: InputState = {
   steer: 0,
   handbrake: false,
   boost: false,
+  boostHeld: false,
   pause: false,
   mute: false,
 };
@@ -26,6 +27,7 @@ export function sanitizeInput(input: InputState): InputState {
     steer: clamp(input.steer, -1, 1),
     handbrake: Boolean(input.handbrake),
     boost: Boolean(input.boost),
+    boostHeld: Boolean(input.boostHeld),
     pause: Boolean(input.pause),
     mute: Boolean(input.mute),
   };

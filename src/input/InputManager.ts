@@ -100,11 +100,18 @@ export class InputManager {
   }
 
   setTouchAction(action: TouchAction, active: boolean): void {
-    if (action === 'pause' || action === 'mute' || action === 'boost') {
+    if (action === 'pause' || action === 'mute') {
       if (active) {
         this.oneShot[action] = true;
       }
       this.touchActive[action] = false;
+      return;
+    }
+    if (action === 'boost') {
+      if (active && !this.touchActive.boost) {
+        this.oneShot.boost = true;
+      }
+      this.touchActive.boost = active;
       return;
     }
     this.touchActive[action] = active;
@@ -244,6 +251,7 @@ export class InputManager {
     const leftKey = this.isKeyboardActionPressed('steerLeft');
     const rightKey = this.isKeyboardActionPressed('steerRight');
     const handbrakeKey = this.isKeyboardActionPressed('drift');
+    const boostHeld = this.isKeyboardActionPressed('boost') || this.touchActive.boost;
 
     // Positive steer turns right.
     const digitalSteer = clamp((leftKey || this.touchActive.left ? -1 : 0) + (rightKey || this.touchActive.right ? 1 : 0), -1, 1);
@@ -256,6 +264,7 @@ export class InputManager {
       steer,
       handbrake: handbrakeKey || this.touchActive.handbrake,
       boost: this.oneShot.boost,
+      boostHeld,
       pause: this.oneShot.pause,
       mute: this.oneShot.mute,
     };
@@ -292,6 +301,11 @@ export class InputManager {
     const driftExpected = this.isKeyboardActionPressed('drift') || this.touchActive.handbrake;
     if (driftExpected && !snapshot.handbrake) {
       warnings.push('ドリフト入力が押下中なのに handbrake=false です');
+    }
+
+    const boostHeldExpected = this.isKeyboardActionPressed('boost') || this.touchActive.boost;
+    if (boostHeldExpected && !snapshot.boostHeld) {
+      warnings.push('OVERDRIVE入力が押下中なのに boostHeld=false です');
     }
 
     const joystickSteerActive = Math.abs(this.touchSteerAxis) > 0.001;

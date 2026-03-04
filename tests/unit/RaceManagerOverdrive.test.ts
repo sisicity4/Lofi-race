@@ -12,6 +12,7 @@ const NO_INPUT: InputState = {
   steer: 0,
   handbrake: false,
   boost: false,
+  boostHeld: false,
   pause: false,
   mute: false,
 };
@@ -72,6 +73,14 @@ function makeEntry(state: VehicleState, rank: number): LeaderboardEntry {
   };
 }
 
+function setPlayerStraightLineState(raceManager: RaceManager, speedMs = 20): void {
+  const player = raceManager.getPlayerVehicle();
+  alignVehicleOnWaypoint(raceManager, player, 0, 0, speedMs);
+  player.driftActive = false;
+  player.slipRatio = 0;
+  player.isOffTrack = false;
+}
+
 describe('RaceManager overdrive', () => {
   it('accumulates overdrive meter from sustained risk driving', () => {
     const raceManager = new RaceManager({
@@ -115,6 +124,56 @@ describe('RaceManager overdrive', () => {
     expect(snapshot.race.overdriveSpeedMultiplier).toBeGreaterThan(1.2);
   });
 
+  it('queues boost while held and auto-activates once meter reaches threshold', () => {
+    const raceManager = new RaceManager({
+      track: createFallbackCoastalTrack(),
+      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: new EventBus<GameEvents>(),
+      initialBestLapMs: null,
+    });
+    advanceToRacing(raceManager);
+
+    (raceManager as unknown as { overdriveMeter01: number }).overdriveMeter01 = 0.34;
+    raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1, boost: true, boostHeld: true });
+    expect(raceManager.getSnapshot().race.overdriveState).toBe('idle');
+
+    for (let i = 0; i < 120; i += 1) {
+      placePlayerInRiskState(raceManager, i);
+      raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1, boostHeld: true });
+      if (raceManager.getSnapshot().race.overdriveState === 'active') break;
+    }
+
+    const snapshot = raceManager.getSnapshot();
+    expect(snapshot.race.overdriveState).toBe('active');
+    expect(snapshot.race.overdriveActiveMs).toBeGreaterThan(0);
+  });
+
+  it('accelerates faster during active overdrive than normal driving', () => {
+    const raceManager = new RaceManager({
+      track: createFallbackCoastalTrack(),
+      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: new EventBus<GameEvents>(),
+      initialBestLapMs: null,
+    });
+    advanceToRacing(raceManager);
+
+    setPlayerStraightLineState(raceManager, 20);
+    raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1 });
+    const baseSpeed = raceManager.getPlayerVehicle().speedForward;
+
+    setPlayerStraightLineState(raceManager, 20);
+    (raceManager as unknown as { overdriveState: 'active' }).overdriveState = 'active';
+    (raceManager as unknown as { overdriveActiveMs: number }).overdriveActiveMs = 1800;
+    (raceManager as unknown as { overdriveSpeedMultiplier: number }).overdriveSpeedMultiplier = 1.42;
+    (raceManager as unknown as { overdriveAccelMultiplier: number }).overdriveAccelMultiplier = 1.55;
+    raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1 });
+    const boostedSpeed = raceManager.getPlayerVehicle().speedForward;
+
+    expect(boostedSpeed).toBeGreaterThan(baseSpeed);
+  });
+
   it('enters overheated penalty on wall-contact failure while overdrive is active', () => {
     const raceManager = new RaceManager({
       track: createFallbackCoastalTrack(),
@@ -141,6 +200,29 @@ describe('RaceManager overdrive', () => {
     expect(snapshot.race.overdriveState).toBe('overheated');
     expect(snapshot.race.overdrivePenaltyMs).toBeGreaterThan(0);
     expect(snapshot.race.overdriveSpeedMultiplier).toBeCloseTo(0.72, 4);
+  });
+
+  it('suppresses acceleration while overheat penalty is active', () => {
+    const raceManager = new RaceManager({
+      track: createFallbackCoastalTrack(),
+      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: new EventBus<GameEvents>(),
+      initialBestLapMs: null,
+    });
+    advanceToRacing(raceManager);
+
+    setPlayerStraightLineState(raceManager, 20);
+    raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1 });
+    const baseSpeed = raceManager.getPlayerVehicle().speedForward;
+
+    setPlayerStraightLineState(raceManager, 20);
+    (raceManager as unknown as { overdriveState: 'overheated' }).overdriveState = 'overheated';
+    (raceManager as unknown as { overdrivePenaltyMs: number }).overdrivePenaltyMs = 1800;
+    raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1 });
+    const penaltySpeed = raceManager.getPlayerVehicle().speedForward;
+
+    expect(penaltySpeed).toBeLessThan(baseSpeed);
   });
 
   it('adapts CPU bias toward catch-up equilibrium based on player position trend', () => {

@@ -58,6 +58,7 @@ export class CpuDriver {
       steer,
       handbrake,
       boost: false,
+      boostHeld: false,
       pause: false,
       mute: false,
     };

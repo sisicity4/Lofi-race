@@ -54,8 +54,12 @@ const OVERDRIVE_MIN_DURATION_MS = 1000;
 const OVERDRIVE_MAX_DURATION_MS = 2600;
 const OVERDRIVE_MIN_SPEED_MULTIPLIER = 1.18;
 const OVERDRIVE_MAX_SPEED_MULTIPLIER = 1.42;
+const OVERDRIVE_MIN_ACCEL_MULTIPLIER = 1.24;
+const OVERDRIVE_MAX_ACCEL_MULTIPLIER = 1.55;
 const OVERDRIVE_PENALTY_MS = 2200;
 const OVERDRIVE_PENALTY_SPEED_MULTIPLIER = 0.72;
+const OVERDRIVE_PENALTY_ACCEL_MULTIPLIER = 0.68;
+const OVERDRIVE_WARN_COOLDOWN_MS = 1000;
 const OVERDRIVE_DRIFT_GAIN_PER_SEC = 0.78;
 const OVERDRIVE_WALL_GAIN_PER_SEC = 1.02;
 const OVERDRIVE_IDLE_DECAY_PER_SEC = 0.085;
@@ -99,6 +103,9 @@ export class RaceManager {
   private overdriveActiveMs = 0;
   private overdrivePenaltyMs = 0;
   private overdriveSpeedMultiplier = 1;
+  private overdriveAccelMultiplier = 1;
+  private overdriveBoostQueued = false;
+  private overdriveBoostWarnCooldownMs = 0;
   private cpuAdaptiveBias = 0;
   private cpuAdaptiveTickMs = 0;
 
@@ -198,10 +205,12 @@ export class RaceManager {
     }
 
     if (this.phase === 'paused' || this.phase === 'menu') {
+      this.overdriveBoostQueued = false;
       return;
     }
 
     if (this.phase === 'countdown') {
+      this.overdriveBoostQueued = false;
       const countdownResult = this.countdown.update(dtSec);
       if (countdownResult.changedLabel) {
         this.options.eventBus.emit('race:countdownTick', { label: countdownResult.changedLabel });
@@ -216,6 +225,7 @@ export class RaceManager {
     }
 
     if (this.phase !== 'racing') {
+      this.overdriveBoostQueued = false;
       return;
     }
 
@@ -265,15 +275,17 @@ export class RaceManager {
       state.isOffTrack = offTrack;
       if (state.isPlayer) {
         this.captureSafePose(state, preSample);
-        this.tryActivateOverdrive(input.boost);
+        this.handlePlayerOverdriveInput(input.boost, input.boostHeld);
       }
 
       const speedMultiplier = state.isPlayer ? this.getPlayerRaceSpeedMultiplier(state) : 1;
+      const accelMultiplier = state.isPlayer ? this.getPlayerOverdriveAccelMultiplier() : 1;
       this.physics.step(state, input, rv.entity.params, {
         dt: dtSec,
         surface: offTrack ? 'grass' : 'road',
         offTrack,
         speedMultiplier,
+        accelMultiplier,
       });
 
       const postSample = this.trackProgress.sample({ x: state.position.x, z: state.position.z });
@@ -282,6 +294,7 @@ export class RaceManager {
       if (state.isPlayer) {
         this.captureSafePose(state, postSample);
         this.updateOverdriveMeter(state, postSample, dtSec);
+        this.tryActivateQueuedOverdrive(input.boostHeld);
         if (this.isPlayerFellOff(postSample)) {
           this.triggerOutOfBounds(state, 'fell-off');
           continue;
@@ -792,6 +805,9 @@ export class RaceManager {
     this.overdriveActiveMs = 0;
     this.overdrivePenaltyMs = 0;
     this.overdriveSpeedMultiplier = 1;
+    this.overdriveAccelMultiplier = 1;
+    this.overdriveBoostQueued = false;
+    this.overdriveBoostWarnCooldownMs = 0;
   }
 
   private getPlayerRaceSpeedMultiplier(state: VehicleState): number {
@@ -819,13 +835,21 @@ export class RaceManager {
     return 1;
   }
 
+  private getPlayerOverdriveAccelMultiplier(): number {
+    if (this.overdrivePenaltyMs > 0) return OVERDRIVE_PENALTY_ACCEL_MULTIPLIER;
+    if (this.overdriveState === 'active') return this.overdriveAccelMultiplier;
+    return 1;
+  }
+
   private updateOverdriveRuntime(dtSec: number): void {
     const dtMs = dtSec * 1000;
+    this.overdriveBoostWarnCooldownMs = Math.max(0, this.overdriveBoostWarnCooldownMs - dtMs);
     if (this.overdriveState === 'active') {
       this.overdriveActiveMs = Math.max(0, this.overdriveActiveMs - dtMs);
       if (this.overdriveActiveMs <= 0) {
         this.overdriveState = this.overdrivePenaltyMs > 0 ? 'overheated' : 'idle';
         this.overdriveSpeedMultiplier = 1;
+        this.overdriveAccelMultiplier = 1;
       }
     }
 
@@ -833,33 +857,77 @@ export class RaceManager {
       const prev = this.overdrivePenaltyMs;
       this.overdrivePenaltyMs = Math.max(0, this.overdrivePenaltyMs - dtMs);
       this.overdriveState = 'overheated';
+      this.overdriveBoostQueued = false;
       if (prev > 0 && this.overdrivePenaltyMs <= 0) {
         this.overdriveState = 'idle';
         this.overdriveSpeedMultiplier = 1;
+        this.overdriveAccelMultiplier = 1;
         this.setMessage('BOOST READY', 700, 'info');
       }
     }
   }
 
-  private tryActivateOverdrive(boostPressed: boolean): void {
+  private handlePlayerOverdriveInput(boostPressed: boolean, boostHeld: boolean): void {
+    if (!boostHeld) {
+      this.overdriveBoostQueued = false;
+    }
     if (!boostPressed) return;
+    if (this.tryActivateOverdrive()) {
+      this.overdriveBoostQueued = false;
+      return;
+    }
     if (this.phase !== 'racing') return;
-    if (this.overdriveState === 'active') return;
-    if (this.overdrivePenaltyMs > 0) return;
-    if (this.overdriveMeter01 < OVERDRIVE_MIN_METER) return;
+    if (this.overdriveState === 'active' || this.overdrivePenaltyMs > 0) {
+      this.overdriveBoostQueued = false;
+      return;
+    }
+    if (this.overdriveMeter01 < OVERDRIVE_MIN_METER) {
+      this.showOverdriveChargeWarning();
+      if (boostHeld) {
+        this.overdriveBoostQueued = true;
+      }
+    }
+  }
+
+  private tryActivateQueuedOverdrive(boostHeld: boolean): void {
+    if (!boostHeld) {
+      this.overdriveBoostQueued = false;
+      return;
+    }
+    if (!this.overdriveBoostQueued) return;
+    if (this.tryActivateOverdrive()) {
+      this.overdriveBoostQueued = false;
+    }
+  }
+
+  private showOverdriveChargeWarning(): void {
+    if (this.overdriveBoostWarnCooldownMs > 0) return;
+    this.overdriveBoostWarnCooldownMs = OVERDRIVE_WARN_COOLDOWN_MS;
+    this.setMessage('CHARGE不足', 700, 'warn');
+  }
+
+  private tryActivateOverdrive(): boolean {
+    if (this.phase !== 'racing') return false;
+    if (this.overdriveState === 'active') return false;
+    if (this.overdrivePenaltyMs > 0) return false;
+    if (this.overdriveMeter01 < OVERDRIVE_MIN_METER) return false;
 
     const spent = this.overdriveMeter01;
     this.overdriveMeter01 = 0;
     this.overdriveState = 'active';
+    this.overdriveBoostQueued = false;
     this.overdriveActiveMs = OVERDRIVE_MIN_DURATION_MS + spent * (OVERDRIVE_MAX_DURATION_MS - OVERDRIVE_MIN_DURATION_MS);
     this.overdriveSpeedMultiplier =
       OVERDRIVE_MIN_SPEED_MULTIPLIER + spent * (OVERDRIVE_MAX_SPEED_MULTIPLIER - OVERDRIVE_MIN_SPEED_MULTIPLIER);
+    this.overdriveAccelMultiplier =
+      OVERDRIVE_MIN_ACCEL_MULTIPLIER + spent * (OVERDRIVE_MAX_ACCEL_MULTIPLIER - OVERDRIVE_MIN_ACCEL_MULTIPLIER);
     this.setMessage('OVERDRIVE!', 760, 'hype');
     this.options.eventBus.emit('race:overdriveStart', {
       atMs: this.elapsedMs,
       meterSpent: spent,
       durationMs: this.overdriveActiveMs,
     });
+    return true;
   }
 
   private failOverdrive(reason: 'collision' | OutOfBoundsReason, showMessage = true): void {
@@ -868,7 +936,9 @@ export class RaceManager {
     this.overdriveActiveMs = 0;
     this.overdrivePenaltyMs = OVERDRIVE_PENALTY_MS;
     this.overdriveSpeedMultiplier = 1;
+    this.overdriveAccelMultiplier = 1;
     this.overdriveMeter01 = 0;
+    this.overdriveBoostQueued = false;
     this.breakCombo('hit');
     if (showMessage) {
       this.setMessage('OVERHEAT!', 820, 'warn');

@@ -147,6 +147,7 @@ describe('InputManager', () => {
       steer: 0,
       handbrake: false,
       boost: false,
+      boostHeld: false,
       pause: false,
       mute: false,
     };
@@ -156,13 +157,17 @@ describe('InputManager', () => {
     expect(debug.warnings.some((warning) => warning.includes('steer'))).toBe(true);
   });
 
-  it('treats touch boost as one-shot input', () => {
+  it('treats touch boost as one-shot while preserving hold state', () => {
     const input = new InputManager();
     input.setTouchAction('boost', true);
     const first = input.snapshot();
     const second = input.snapshot();
     expect(first.boost).toBe(true);
+    expect(first.boostHeld).toBe(true);
     expect(second.boost).toBe(false);
+    expect(second.boostHeld).toBe(true);
+    input.setTouchAction('boost', false);
+    expect(input.snapshot().boostHeld).toBe(false);
   });
 
   it('clearAll clears pending one-shot boost', () => {
@@ -172,13 +177,18 @@ describe('InputManager', () => {
     expect(input.snapshot().boost).toBe(false);
   });
 
-  it('treats Shift boost as one-shot and ignores repeat keydown', () => {
+  it('treats Shift boost as one-shot and keeps boostHeld while key is held', () => {
     const input = new InputManager();
     keyDown(input, 'ShiftLeft');
     expect(input.snapshot().boost).toBe(true);
+    expect(input.snapshot().boostHeld).toBe(true);
     expect(input.snapshot().boost).toBe(false);
+    expect(input.snapshot().boostHeld).toBe(true);
 
     keyDown(input, 'ShiftLeft', true);
     expect(input.snapshot().boost).toBe(false);
+    expect(input.snapshot().boostHeld).toBe(true);
+    keyUp(input, 'ShiftLeft');
+    expect(input.snapshot().boostHeld).toBe(false);
   });
 });

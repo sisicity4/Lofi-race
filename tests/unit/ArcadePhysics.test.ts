@@ -40,13 +40,28 @@ function createState(): VehicleState {
   };
 }
 
-const noInput: InputState = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, pause: false, mute: false };
+const noInput: InputState = {
+  throttle: 0,
+  brake: 0,
+  steer: 0,
+  handbrake: false,
+  boost: false,
+  boostHeld: false,
+  pause: false,
+  mute: false,
+};
 
 describe('ArcadePhysics', () => {
   it('decelerates when no input is applied', () => {
     const physics = new ArcadePhysics();
     const state = createState();
-    physics.step(state, noInput, DEFAULT_VEHICLE_PARAMS, { dt: 1 / 60, surface: 'road', offTrack: false, speedMultiplier: 1 });
+    physics.step(state, noInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1,
+    });
     expect(state.speedForward).toBeLessThan(20);
   });
 
@@ -56,8 +71,20 @@ describe('ArcadePhysics', () => {
     const offRoad = createState();
     const accelInput: InputState = { ...noInput, throttle: 1 };
     for (let i = 0; i < 180; i += 1) {
-      physics.step(onRoad, accelInput, DEFAULT_VEHICLE_PARAMS, { dt: 1 / 60, surface: 'road', offTrack: false, speedMultiplier: 1 });
-      physics.step(offRoad, accelInput, DEFAULT_VEHICLE_PARAMS, { dt: 1 / 60, surface: 'grass', offTrack: true, speedMultiplier: 1 });
+      physics.step(onRoad, accelInput, DEFAULT_VEHICLE_PARAMS, {
+        dt: 1 / 60,
+        surface: 'road',
+        offTrack: false,
+        speedMultiplier: 1,
+        accelMultiplier: 1,
+      });
+      physics.step(offRoad, accelInput, DEFAULT_VEHICLE_PARAMS, {
+        dt: 1 / 60,
+        surface: 'grass',
+        offTrack: true,
+        speedMultiplier: 1,
+        accelMultiplier: 1,
+      });
     }
     expect(onRoad.speedForward).toBeGreaterThan(offRoad.speedForward);
   });
@@ -70,9 +97,77 @@ describe('ArcadePhysics', () => {
     const driftInput: InputState = { ...noInput, throttle: 1, steer: 1, handbrake: true };
     state.driftActive = true;
     state.driftChargeMs = 900;
-    physics.step(state, driftInput, DEFAULT_VEHICLE_PARAMS, { dt: 1 / 60, surface: 'road', offTrack: false, speedMultiplier: 1 });
-    physics.step(state, { ...driftInput, handbrake: false }, DEFAULT_VEHICLE_PARAMS, { dt: 1 / 60, surface: 'road', offTrack: false, speedMultiplier: 1 });
+    physics.step(state, driftInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1,
+    });
+    physics.step(state, { ...driftInput, handbrake: false }, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1,
+    });
     expect(state.driftBoostMs).toBeGreaterThan(0);
     expect(state.driftBoostStrength).toBeGreaterThan(0);
+  });
+
+  it('accelerates harder when accelMultiplier is above 1', () => {
+    const physics = new ArcadePhysics();
+    const base = createState();
+    const boosted = createState();
+    base.velocityWorld = { x: 0, y: 0, z: 0 };
+    boosted.velocityWorld = { x: 0, y: 0, z: 0 };
+    base.speedForward = 0;
+    boosted.speedForward = 0;
+    const throttleInput: InputState = { ...noInput, throttle: 1 };
+
+    physics.step(base, throttleInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1,
+    });
+    physics.step(boosted, throttleInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1.4,
+    });
+
+    expect(boosted.speedForward).toBeGreaterThan(base.speedForward);
+  });
+
+  it('suppresses acceleration when accelMultiplier is below 1', () => {
+    const physics = new ArcadePhysics();
+    const base = createState();
+    const suppressed = createState();
+    base.velocityWorld = { x: 0, y: 0, z: 0 };
+    suppressed.velocityWorld = { x: 0, y: 0, z: 0 };
+    base.speedForward = 0;
+    suppressed.speedForward = 0;
+    const throttleInput: InputState = { ...noInput, throttle: 1 };
+
+    physics.step(base, throttleInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 1,
+    });
+    physics.step(suppressed, throttleInput, DEFAULT_VEHICLE_PARAMS, {
+      dt: 1 / 60,
+      surface: 'road',
+      offTrack: false,
+      speedMultiplier: 1,
+      accelMultiplier: 0.68,
+    });
+
+    expect(suppressed.speedForward).toBeLessThan(base.speedForward);
   });
 });

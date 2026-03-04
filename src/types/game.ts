@@ -80,6 +80,7 @@ export interface InputState {
   steer: number;
   handbrake: boolean;
   boost: boolean;
+  boostHeld: boolean;
   pause: boolean;
   mute: boolean;
 }
@@ -165,6 +166,7 @@ export interface PhysicsEnv {
   surface: SurfaceKind;
   offTrack: boolean;
   speedMultiplier: number;
+  accelMultiplier: number;
 }
 
 export interface CountdownSnapshot {
