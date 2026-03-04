@@ -28,11 +28,12 @@ export class SceneBuilder {
     scene.add(this.createSpeedShadowFrames(track));
     scene.add(this.createZoneLandmarkSet(track));
     scene.add(this.createThemeLandmarks(track));
+    scene.add(this.createToyboxRemixSet(track));
 
     const decoGroup = new THREE.Group();
     decoGroup.name = 'deco';
     this.populateThemeDeco(decoGroup, track);
-    decoGroup.add(this.createTracksideObjectField(track));
+    decoGroup.add(this.createTrackEdgeGuideBlocks(track));
     scene.add(decoGroup);
   }
 
@@ -2070,6 +2071,640 @@ export class SceneBuilder {
     return group;
   }
 
+  private createToyboxRemixSet(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'toybox-remix';
+    root.add(this.createToyboxGuideRails(track));
+    root.add(this.createToyboxDirectionTotems(track));
+
+    switch (track.theme) {
+      case 'raceway':
+        root.add(this.createRacewayKitchenRemix(track));
+        break;
+      case 'desert':
+        root.add(this.createDesertSandboxRemix(track));
+        break;
+      case 'forest':
+        root.add(this.createForestDeskRemix(track));
+        break;
+      case 'studio':
+        root.add(this.createStudioBacklotRemix(track));
+        break;
+      case 'coastal':
+      default:
+        root.add(this.createCoastalToyRemix(track));
+        break;
+    }
+
+    return root;
+  }
+
+  private createToyboxGuideRails(track: TrackDefinition): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'toybox-guide-rails';
+    const count = track.waypoints.length;
+    if (count < 2) return group;
+
+    const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.86 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.84 });
+    const postMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.18, 1, 0.18), postMat, count * 2);
+    const railMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.1, 1), railMat, count * 2);
+
+    const dummy = new THREE.Object3D();
+    let postIndex = 0;
+    let railIndex = 0;
+
+    for (let i = 0; i < count; i += 1) {
+      const zone = this.getZoneIndex(i, count);
+      const zoneColor = new THREE.Color(this.getZoneColor(track.theme, zone)).lerp(new THREE.Color(0xffffff), 0.22);
+      const a = track.waypoints[i];
+      const b = track.waypoints[(i + 1) % count];
+      const segment = normalize2({ x: b.x - a.x, z: b.z - a.z });
+      const left = perpLeft2(segment);
+
+      for (const side of [-1, 1] as const) {
+        const offsetA = a.width * 0.5 + 1.9;
+        const offsetB = b.width * 0.5 + 1.9;
+        const ax = a.x + left.x * offsetA * side;
+        const az = a.z + left.z * offsetA * side;
+        const bx = b.x + left.x * offsetB * side;
+        const bz = b.z + left.z * offsetB * side;
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 0.2) continue;
+
+        const postHeight = 1 + zone * 0.38 + ((i + (side > 0 ? 1 : 0)) % 2) * 0.2;
+        dummy.position.set(ax, postHeight * 0.5, az);
+        dummy.rotation.set(0, Math.atan2(segment.x, segment.z), 0);
+        dummy.scale.set(1, postHeight, 1);
+        dummy.updateMatrix();
+        postMesh.setMatrixAt(postIndex, dummy.matrix);
+        postMesh.setColorAt(postIndex, zoneColor);
+        postIndex += 1;
+
+        dummy.position.set((ax + bx) * 0.5, 0.92 + zone * 0.18, (az + bz) * 0.5);
+        dummy.rotation.set(0, Math.atan2(bx - ax, bz - az), 0);
+        dummy.scale.set(1, 1, len);
+        dummy.updateMatrix();
+        railMesh.setMatrixAt(railIndex, dummy.matrix);
+        railMesh.setColorAt(railIndex, zoneColor.clone().multiplyScalar(0.88));
+        railIndex += 1;
+      }
+    }
+
+    postMesh.count = postIndex;
+    railMesh.count = railIndex;
+    postMesh.instanceMatrix.needsUpdate = true;
+    railMesh.instanceMatrix.needsUpdate = true;
+    if (postMesh.instanceColor) postMesh.instanceColor.needsUpdate = true;
+    if (railMesh.instanceColor) railMesh.instanceColor.needsUpdate = true;
+
+    group.add(postMesh, railMesh);
+    return group;
+  }
+
+  private createToyboxDirectionTotems(track: TrackDefinition): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'toybox-direction-totems';
+    const count = track.waypoints.length;
+    if (count < 3) return group;
+
+    const markerFractions = [0.16, 0.5, 0.84] as const;
+    for (let i = 0; i < markerFractions.length; i += 1) {
+      const index = Math.floor(count * markerFractions[i]);
+      const sideSign: 1 | -1 = i % 2 === 0 ? 1 : -1;
+      const anchor = this.getTracksideAnchor(track, index, sideSign, 13.8 + i * 0.9);
+      const zone = this.getZoneIndex(index, count);
+      const color = this.getZoneColor(track.theme, zone);
+
+      const totem = new THREE.Group();
+      totem.position.set(anchor.x, 0.08, anchor.z);
+      totem.rotation.y = anchor.yaw + sideSign * 0.16;
+
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.45, 1.78, 0.42, 10),
+        new THREE.MeshStandardMaterial({ color: 0x23343a, flatShading: true, roughness: 0.9 }),
+      );
+      base.position.y = 0.22;
+      totem.add(base);
+
+      const shaft = new THREE.Mesh(
+        new THREE.BoxGeometry(0.24, 2.1, 0.24),
+        new THREE.MeshStandardMaterial({ color: 0xeff4ff, flatShading: true, roughness: 0.86 }),
+      );
+      shaft.position.y = 1.32;
+      totem.add(shaft);
+
+      const arrow = new THREE.Group();
+      arrow.position.y = 2.62;
+      const tail = new THREE.Mesh(
+        new THREE.BoxGeometry(1.05, 0.22, 0.18),
+        new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.78 }),
+      );
+      tail.position.x = -0.2;
+      arrow.add(tail);
+      const tip = new THREE.Mesh(
+        new THREE.ConeGeometry(0.33, 0.7, 3),
+        new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.74 }),
+      );
+      tip.rotation.z = -Math.PI / 2;
+      tip.position.x = 0.46;
+      arrow.add(tip);
+      totem.add(arrow);
+
+      const topper = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.28, 0),
+        new THREE.MeshStandardMaterial({ color: 0xfff2c7, flatShading: true, roughness: 0.72 }),
+      );
+      topper.position.y = 3.18;
+      totem.add(topper);
+
+      group.add(totem);
+    }
+
+    return group;
+  }
+
+  private createRacewayKitchenRemix(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'raceway-kitchen-remix';
+
+    const mugAnchor = this.getTracksideAnchor(track, 8, 1, 29);
+    const mug = this.createGiantMugDisplay(0xf7f7f2, 0xff6b6b);
+    mug.position.set(mugAnchor.x, 0.08, mugAnchor.z);
+    mug.rotation.y = mugAnchor.yaw + 0.24;
+    root.add(mug);
+
+    const plateAnchor = this.getTracksideAnchor(track, 23, -1, 26);
+    const plates = this.createPlateStackDisplay();
+    plates.position.set(plateAnchor.x, 0.08, plateAnchor.z);
+    plates.rotation.y = plateAnchor.yaw - 0.16;
+    root.add(plates);
+
+    const utensilAnchor = this.getTracksideAnchor(track, 34, 1, 24);
+    const utensil = this.createUtensilSculpture();
+    utensil.position.set(utensilAnchor.x, 0.08, utensilAnchor.z);
+    utensil.rotation.y = utensilAnchor.yaw + 0.42;
+    root.add(utensil);
+
+    return root;
+  }
+
+  private createDesertSandboxRemix(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'desert-sandbox-remix';
+
+    const bucketAnchor = this.getTracksideAnchor(track, 10, 1, 30);
+    const bucket = this.createBucketAndShovelDisplay();
+    bucket.position.set(bucketAnchor.x, 0.08, bucketAnchor.z);
+    bucket.rotation.y = bucketAnchor.yaw + 0.22;
+    root.add(bucket);
+
+    const blockAnchor = this.getTracksideAnchor(track, 28, -1, 26);
+    const blocks = this.createToyBlockCluster();
+    blocks.position.set(blockAnchor.x, 0.08, blockAnchor.z);
+    blocks.rotation.y = blockAnchor.yaw - 0.3;
+    root.add(blocks);
+
+    const ringAnchor = this.getTracksideAnchor(track, 40, 1, 24);
+    const ring = this.createFloatRingSculpture(0xffb703, 0x8ecae6);
+    ring.position.set(ringAnchor.x, 0.08, ringAnchor.z);
+    ring.rotation.y = ringAnchor.yaw;
+    root.add(ring);
+
+    return root;
+  }
+
+  private createForestDeskRemix(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'forest-desk-remix';
+
+    const notebookAnchor = this.getTracksideAnchor(track, 7, -1, 28);
+    const notebook = this.createNotebookStackDisplay();
+    notebook.position.set(notebookAnchor.x, 0.08, notebookAnchor.z);
+    notebook.rotation.y = notebookAnchor.yaw + 0.28;
+    root.add(notebook);
+
+    const pencilAnchor = this.getTracksideAnchor(track, 24, 1, 27);
+    const pencil = this.createPencilTunnelDisplay();
+    pencil.position.set(pencilAnchor.x, 0.08, pencilAnchor.z);
+    pencil.rotation.y = pencilAnchor.yaw - 0.34;
+    root.add(pencil);
+
+    const plantAnchor = this.getTracksideAnchor(track, 39, -1, 24);
+    const plant = this.createPlantPotDisplay();
+    plant.position.set(plantAnchor.x, 0.08, plantAnchor.z);
+    plant.rotation.y = plantAnchor.yaw;
+    root.add(plant);
+
+    return root;
+  }
+
+  private createStudioBacklotRemix(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'studio-backlot-remix';
+
+    const clapperAnchor = this.getTracksideAnchor(track, 6, 1, 27);
+    const clapper = this.createClapperboardTower();
+    clapper.position.set(clapperAnchor.x, 0.08, clapperAnchor.z);
+    clapper.rotation.y = clapperAnchor.yaw + 0.26;
+    root.add(clapper);
+
+    const craneAnchor = this.getTracksideAnchor(track, 22, -1, 29);
+    const crane = this.createCameraCraneDisplay();
+    crane.position.set(craneAnchor.x, 0.08, craneAnchor.z);
+    crane.rotation.y = craneAnchor.yaw - 0.22;
+    root.add(crane);
+
+    const facadeAnchor = this.getTracksideAnchor(track, 35, 1, 25);
+    const facade = this.createCardboardSetFacade();
+    facade.position.set(facadeAnchor.x, 0.08, facadeAnchor.z);
+    facade.rotation.y = facadeAnchor.yaw + 0.1;
+    root.add(facade);
+
+    return root;
+  }
+
+  private createCoastalToyRemix(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'coastal-toy-remix';
+
+    const ringAnchor = this.getTracksideAnchor(track, 10, 1, 20);
+    const ring = this.createFloatRingSculpture(0xff6b6b, 0x06d6a0);
+    ring.position.set(ringAnchor.x, 0.08, ringAnchor.z);
+    ring.rotation.y = ringAnchor.yaw + 0.18;
+    root.add(ring);
+
+    const mugAnchor = this.getTracksideAnchor(track, 19, -1, 21);
+    const mug = this.createGiantMugDisplay(0xfff7d6, 0x4cc9f0);
+    mug.position.set(mugAnchor.x, 0.08, mugAnchor.z);
+    mug.rotation.y = mugAnchor.yaw - 0.2;
+    root.add(mug);
+
+    return root;
+  }
+
+  private createGiantMugDisplay(cupColor: number, accentColor: number): THREE.Group {
+    const root = new THREE.Group();
+    const ceramicMat = new THREE.MeshStandardMaterial({ color: cupColor, flatShading: true, roughness: 0.85 });
+    const liquidMat = new THREE.MeshStandardMaterial({ color: accentColor, emissive: 0x182f36, flatShading: true, roughness: 0.7 });
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, flatShading: true, roughness: 0.9 });
+
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 5.8, 0.34, 18), plateMat);
+    plate.position.y = 0.17;
+    root.add(plate);
+
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.35, 4.4, 16), ceramicMat);
+    cup.position.y = 2.35;
+    root.add(cup);
+
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(2.58, 0.16, 8, 18), ceramicMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 4.45;
+    root.add(rim);
+
+    const liquid = new THREE.Mesh(new THREE.CylinderGeometry(2.22, 2.22, 0.18, 14), liquidMat);
+    liquid.position.y = 4.22;
+    root.add(liquid);
+
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(1.28, 0.21, 8, 18), ceramicMat);
+    handle.rotation.y = Math.PI / 2;
+    handle.position.set(2.52, 2.78, 0);
+    root.add(handle);
+
+    const spoon = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.08, 3.4),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, flatShading: true, roughness: 0.72 }),
+    );
+    spoon.position.set(0.84, 4.7, 1.1);
+    spoon.rotation.x = 0.2;
+    spoon.rotation.y = -0.25;
+    root.add(spoon);
+
+    return root;
+  }
+
+  private createPlateStackDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, flatShading: true, roughness: 0.88 });
+    const bowlMat = new THREE.MeshStandardMaterial({ color: 0xffd166, flatShading: true, roughness: 0.82 });
+
+    for (let i = 0; i < 4; i += 1) {
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(4.2 - i * 0.24, 4.45 - i * 0.24, 0.22, 18), plateMat);
+      plate.position.y = 0.11 + i * 0.22;
+      plate.rotation.y = i * 0.2;
+      root.add(plate);
+    }
+
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(1.9, 12, 9), bowlMat);
+    bowl.scale.y = 0.5;
+    bowl.position.set(-1.3, 1.48, 0.9);
+    root.add(bowl);
+
+    const napkin = new THREE.Mesh(
+      new THREE.BoxGeometry(1.9, 0.16, 1.9),
+      new THREE.MeshStandardMaterial({ color: 0x90be6d, flatShading: true, roughness: 0.9 }),
+    );
+    napkin.position.set(1.6, 1.26, -1.2);
+    napkin.rotation.y = 0.4;
+    root.add(napkin);
+
+    return root;
+  }
+
+  private createUtensilSculpture(): THREE.Group {
+    const root = new THREE.Group();
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0xdbe4ee, flatShading: true, roughness: 0.7, metalness: 0.1 });
+    const standMat = new THREE.MeshStandardMaterial({ color: 0x5b6675, flatShading: true, roughness: 0.9 });
+
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.3, 2.2, 12), standMat);
+    stand.position.y = 1.1;
+    root.add(stand);
+
+    for (let i = 0; i < 3; i += 1) {
+      const utensil = new THREE.Mesh(new THREE.BoxGeometry(0.26, 5.4, 0.26), metalMat);
+      utensil.position.set(-0.6 + i * 0.6, 4.1, -0.1 + i * 0.2);
+      utensil.rotation.z = -0.14 + i * 0.14;
+      root.add(utensil);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 6), metalMat);
+      head.scale.set(1.1, 0.46, 1.35);
+      head.position.set(utensil.position.x, 6.72, utensil.position.z);
+      root.add(head);
+    }
+    return root;
+  }
+
+  private createBucketAndShovelDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const bucketMat = new THREE.MeshStandardMaterial({ color: 0xffb703, flatShading: true, roughness: 0.84 });
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xfb8500, flatShading: true, roughness: 0.82 });
+    const sandMat = new THREE.MeshStandardMaterial({ color: 0xe0b57a, flatShading: true, roughness: 1 });
+
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.9, 3.6, 16), bucketMat);
+    bucket.position.y = 1.9;
+    root.add(bucket);
+
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(2.7, 0.18, 8, 18), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 3.76;
+    root.add(rim);
+
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(2.45, 0.14, 8, 18, Math.PI), rimMat);
+    handle.rotation.y = Math.PI / 2;
+    handle.position.set(0, 2.7, -0.9);
+    root.add(handle);
+
+    const sand = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.15, 0.24, 14), sandMat);
+    sand.position.y = 3.5;
+    root.add(sand);
+
+    const shovelHandle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.14, 5.8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x8d6e63, flatShading: true, roughness: 0.9 }),
+    );
+    shovelHandle.position.set(3.2, 3.4, 0.8);
+    shovelHandle.rotation.z = -0.34;
+    root.add(shovelHandle);
+
+    const shovelHead = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.2, 1.7),
+      new THREE.MeshStandardMaterial({ color: 0x219ebc, flatShading: true, roughness: 0.8 }),
+    );
+    shovelHead.position.set(1.88, 0.92, 1.1);
+    shovelHead.rotation.x = -0.2;
+    shovelHead.rotation.z = -0.3;
+    root.add(shovelHead);
+
+    return root;
+  }
+
+  private createToyBlockCluster(): THREE.Group {
+    const root = new THREE.Group();
+    const colors = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93];
+    const archMat = new THREE.MeshStandardMaterial({ color: 0x577590, flatShading: true, roughness: 0.85 });
+
+    for (let i = 0; i < 5; i += 1) {
+      const block = new THREE.Mesh(
+        new THREE.BoxGeometry(1.4 + (i % 2) * 0.7, 1.2 + (i % 3) * 0.5, 1.3 + (i % 2) * 0.5),
+        new THREE.MeshStandardMaterial({ color: colors[i % colors.length], flatShading: true, roughness: 0.84 }),
+      );
+      block.position.set(-2.4 + i * 1.26, block.scale.y * 0.6, (i % 2 === 0 ? -1.4 : 1.0));
+      block.rotation.y = i * 0.32;
+      root.add(block);
+    }
+
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.24, 8, 18, Math.PI), archMat);
+    arch.position.set(1.8, 2.35, 0);
+    arch.scale.y = 0.85;
+    root.add(arch);
+
+    return root;
+  }
+
+  private createNotebookStackDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const coverColors = [0x355070, 0x6d597a, 0xb56576, 0xe56b6f];
+    for (let i = 0; i < 4; i += 1) {
+      const book = new THREE.Mesh(
+        new THREE.BoxGeometry(6.2 - i * 0.42, 0.54, 4.3 - i * 0.32),
+        new THREE.MeshStandardMaterial({ color: coverColors[i % coverColors.length], flatShading: true, roughness: 0.86 }),
+      );
+      book.position.set(0, 0.27 + i * 0.56, 0);
+      book.rotation.y = i * 0.14;
+      root.add(book);
+    }
+    const band = new THREE.Mesh(
+      new THREE.BoxGeometry(6.3, 0.14, 0.42),
+      new THREE.MeshStandardMaterial({ color: 0xfefae0, flatShading: true, roughness: 0.88 }),
+    );
+    band.position.set(0, 2.65, -1.65);
+    root.add(band);
+    return root;
+  }
+
+  private createPencilTunnelDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffb703, flatShading: true, roughness: 0.82 });
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0xf4a261, flatShading: true, roughness: 0.84 });
+    const leadMat = new THREE.MeshStandardMaterial({ color: 0x2f2f2f, flatShading: true, roughness: 0.9 });
+
+    for (const side of [-1, 1] as const) {
+      const pencil = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 8.8, 8), bodyMat);
+      pencil.rotation.z = Math.PI / 2;
+      pencil.position.set(side * 1.9, 1.18, 0);
+      root.add(pencil);
+
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.43, 1.1, 8), tipMat);
+      tip.rotation.z = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      tip.position.set(side * 6.35, 1.18, 0);
+      root.add(tip);
+
+      const lead = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.32, 6), leadMat);
+      lead.rotation.z = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      lead.position.set(side * 6.9, 1.18, 0);
+      root.add(lead);
+    }
+
+    const cross = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 0.3, 0.56),
+      new THREE.MeshStandardMaterial({ color: 0x3a506b, flatShading: true, roughness: 0.85 }),
+    );
+    cross.position.set(0, 2.38, 0);
+    root.add(cross);
+
+    return root;
+  }
+
+  private createPlantPotDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const pot = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.0, 2.45, 1.9, 14),
+      new THREE.MeshStandardMaterial({ color: 0xb08968, flatShading: true, roughness: 0.94 }),
+    );
+    pot.position.y = 0.95;
+    root.add(pot);
+
+    const soil = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.78, 1.78, 0.2, 12),
+      new THREE.MeshStandardMaterial({ color: 0x6f4e37, flatShading: true, roughness: 1 }),
+    );
+    soil.position.y = 1.78;
+    root.add(soil);
+
+    const stemMat = new THREE.MeshStandardMaterial({ color: 0x588157, flatShading: true, roughness: 0.95 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x52b788, flatShading: true, roughness: 0.95 });
+    for (let i = 0; i < 5; i += 1) {
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 2.2 + i * 0.28, 6), stemMat);
+      stem.position.set(-0.65 + i * 0.32, 2.4 + i * 0.14, -0.2 + (i % 2) * 0.3);
+      stem.rotation.z = -0.08 + i * 0.04;
+      root.add(stem);
+
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.62 - i * 0.05, 1.18, 6), leafMat);
+      leaf.position.set(stem.position.x, stem.position.y + 1.06, stem.position.z);
+      root.add(leaf);
+    }
+    return root;
+  }
+
+  private createClapperboardTower(): THREE.Group {
+    const root = new THREE.Group();
+    const standMat = new THREE.MeshStandardMaterial({ color: 0x2b2d42, flatShading: true, roughness: 0.88 });
+    const boardMat = new THREE.MeshStandardMaterial({ color: 0x8d99ae, flatShading: true, roughness: 0.84 });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.78 });
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.36, 4.8), standMat);
+    base.position.y = 0.18;
+    root.add(base);
+
+    const board = new THREE.Mesh(new THREE.BoxGeometry(6.3, 3.1, 0.34), boardMat);
+    board.position.set(0, 2.05, -0.9);
+    root.add(board);
+
+    for (let i = 0; i < 6; i += 1) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.22, 0.09), stripeMat);
+      stripe.position.set(0, 3.5 + i * 0.28, -0.68);
+      stripe.rotation.z = i % 2 === 0 ? 0.06 : -0.06;
+      root.add(stripe);
+    }
+    return root;
+  }
+
+  private createCameraCraneDisplay(): THREE.Group {
+    const root = new THREE.Group();
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x4f5d75, flatShading: true, roughness: 0.84 });
+    const accentMat = new THREE.MeshStandardMaterial({ color: 0xf77f00, flatShading: true, roughness: 0.82 });
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, flatShading: true, roughness: 0.72 });
+
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 2.3, 0.45, 12), metalMat);
+    base.position.y = 0.22;
+    root.add(base);
+
+    const mast = new THREE.Mesh(new THREE.BoxGeometry(0.36, 4.4, 0.36), metalMat);
+    mast.position.y = 2.4;
+    root.add(mast);
+
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.22, 0.24), metalMat);
+    arm.position.set(2.6, 4.18, 0);
+    arm.rotation.z = -0.2;
+    root.add(arm);
+
+    const cameraBody = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.82, 0.9), accentMat);
+    cameraBody.position.set(5.48, 3.15, 0);
+    root.add(cameraBody);
+
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.35, 0.72, 10), lensMat);
+    lens.position.set(6.05, 3.15, 0);
+    lens.rotation.z = Math.PI / 2;
+    root.add(lens);
+
+    const counter = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.6), accentMat);
+    counter.position.set(0.1, 4.45, 0);
+    root.add(counter);
+
+    return root;
+  }
+
+  private createCardboardSetFacade(): THREE.Group {
+    const root = new THREE.Group();
+    const wallColors = [0xf1faee, 0xffddd2, 0xcddafd, 0xfff1b6];
+    for (let i = 0; i < 4; i += 1) {
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4 + (i % 2) * 0.8, 3.0 + (i % 3) * 0.8, 0.2),
+        new THREE.MeshStandardMaterial({ color: wallColors[i % wallColors.length], flatShading: true, roughness: 0.9 }),
+      );
+      wall.position.set(-3 + i * 2.1, wall.scale.y * 0.58, (i % 2 === 0 ? -0.8 : 0.9));
+      wall.rotation.y = i % 2 === 0 ? 0.08 : -0.09;
+      root.add(wall);
+    }
+
+    const lightBar = new THREE.Mesh(
+      new THREE.BoxGeometry(8.4, 0.24, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0xadb5bd, flatShading: true, roughness: 0.78 }),
+    );
+    lightBar.position.set(0.2, 4.48, 0);
+    root.add(lightBar);
+
+    for (let i = 0; i < 4; i += 1) {
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xffe8a1, emissive: 0x3d2f10, flatShading: true, roughness: 0.68 }),
+      );
+      bulb.position.set(-2.6 + i * 1.7, 4.48, 0.18);
+      root.add(bulb);
+    }
+
+    return root;
+  }
+
+  private createFloatRingSculpture(mainColor: number, accentColor: number): THREE.Group {
+    const root = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(3.2, 0.55, 10, 22),
+      new THREE.MeshStandardMaterial({ color: mainColor, flatShading: true, roughness: 0.78 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 1.8;
+    root.add(ring);
+
+    for (let i = 0; i < 4; i += 1) {
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.9, 0.7),
+        new THREE.MeshStandardMaterial({ color: accentColor, flatShading: true, roughness: 0.76 }),
+      );
+      const angle = (i / 4) * Math.PI * 2 + 0.28;
+      stripe.position.set(Math.cos(angle) * 3.08, 1.8, Math.sin(angle) * 3.08);
+      stripe.rotation.y = angle;
+      root.add(stripe);
+    }
+
+    const stand = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.55, 0.36, 10),
+      new THREE.MeshStandardMaterial({ color: 0x6c757d, flatShading: true, roughness: 0.9 }),
+    );
+    stand.position.y = 0.18;
+    root.add(stand);
+    return root;
+  }
+
   private createTracksideObjectField(track: TrackDefinition): THREE.Group {
     const group = new THREE.Group();
     group.name = 'trackside-object-field';
@@ -2178,6 +2813,81 @@ export class SceneBuilder {
     if (bigProps.instanceColor) bigProps.instanceColor.needsUpdate = true;
 
     group.add(houses, roofs, smallProps, bigProps);
+    return group;
+  }
+
+  private createTrackEdgeGuideBlocks(track: TrackDefinition): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'track-edge-guide-blocks';
+    const count = track.waypoints.length;
+    if (count < 2) return group;
+
+    const blockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.88 });
+    const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.82 });
+    const blockMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 1, 1), blockMat, count * 12);
+    const topMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.32, 0.1, 1), topMat, count * 12);
+
+    const dummy = new THREE.Object3D();
+    let blockIndex = 0;
+    let topIndex = 0;
+
+    for (let i = 0; i < count; i += 1) {
+      const a = track.waypoints[i];
+      const b = track.waypoints[(i + 1) % count];
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const segLen = Math.hypot(dx, dz);
+      if (segLen < 0.2) continue;
+
+      const tangent = normalize2({ x: dx, z: dz });
+      const left = perpLeft2(tangent);
+      const yaw = Math.atan2(dx, dz);
+      const turnAngle = this.getTurnAngleAt(track, i);
+      const curveFactor = Math.min(1, Math.max(0, (turnAngle - 0.08) / 0.42));
+      const markers = Math.max(1, Math.floor(segLen / (curveFactor > 0.4 ? 2.3 : 4.4)));
+      const zoneColor = new THREE.Color(this.getZoneColor(track.theme, this.getZoneIndex(i, count)));
+
+      for (let j = 0; j < markers; j += 1) {
+        const t = (j + 0.5) / markers;
+        const cx = a.x + dx * t;
+        const cz = a.z + dz * t;
+        const halfWidth = (a.width + b.width) * 0.25;
+        const edgeOffset = halfWidth + 0.96;
+        const blockHeight = 0.7 + curveFactor * 0.35;
+        const blockLength = 0.95 + curveFactor * 0.6;
+
+        for (const side of [-1, 1] as const) {
+          if (blockIndex >= blockMesh.count || topIndex >= topMesh.count) continue;
+          const x = cx + left.x * edgeOffset * side;
+          const z = cz + left.z * edgeOffset * side;
+
+          dummy.position.set(x, blockHeight * 0.5, z);
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.set(1, blockHeight, blockLength);
+          dummy.updateMatrix();
+          blockMesh.setMatrixAt(blockIndex, dummy.matrix);
+          blockMesh.setColorAt(blockIndex, zoneColor.clone().multiplyScalar(0.68));
+          blockIndex += 1;
+
+          dummy.position.set(x, blockHeight + 0.05, z);
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.set(1, 1, blockLength * 0.9);
+          dummy.updateMatrix();
+          topMesh.setMatrixAt(topIndex, dummy.matrix);
+          topMesh.setColorAt(topIndex, zoneColor.clone().lerp(new THREE.Color(0xffffff), 0.28));
+          topIndex += 1;
+        }
+      }
+    }
+
+    blockMesh.count = blockIndex;
+    topMesh.count = topIndex;
+    blockMesh.instanceMatrix.needsUpdate = true;
+    topMesh.instanceMatrix.needsUpdate = true;
+    if (blockMesh.instanceColor) blockMesh.instanceColor.needsUpdate = true;
+    if (topMesh.instanceColor) topMesh.instanceColor.needsUpdate = true;
+
+    group.add(blockMesh, topMesh);
     return group;
   }
 
