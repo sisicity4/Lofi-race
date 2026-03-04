@@ -27,8 +27,6 @@ const ZERO_INPUT: InputState = {
   mute: false,
 };
 
-const AUTO_NEXT_RACE_DELAY_MS = 2000;
-
 interface TransientFx {
   root: THREE.Group;
   ageMs: number;
@@ -84,7 +82,6 @@ export class App {
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
   private menuTrackSelectionId: string;
-  private autoNextRaceTimerId: number | null = null;
   private raceStartInFlight = false;
   private trackChangeRequestSeq = 0;
 
@@ -179,6 +176,7 @@ export class App {
       this.menuView.setVisible(true);
       this.resultView.hide();
       this.audio.setPaused(true);
+      this.audio.setStandbyLoopActive(true);
 
       this.loop = new GameLoop(DEFAULT_GAME_CONFIG.fixedStepHz, {
         fixedUpdate: (dtSec) => this.fixedUpdate(dtSec),
@@ -339,7 +337,6 @@ export class App {
     // Invalidate any in-flight manual map switch to avoid menu/race state races.
     this.trackChangeRequestSeq += 1;
     this.raceStartInFlight = true;
-    this.clearAutoNextRaceTimer();
     await this.tryForceLandscape(true);
     void this.audio.unlock().catch(() => {
       // Audio unlock failures must not block race start (notably on WebKit paths).
@@ -371,6 +368,7 @@ export class App {
       this.hudView.setVisible(true);
       this.hudView.setPaused(false);
       this.audio.setPaused(false);
+      this.audio.setStandbyLoopActive(false);
       this.input.clearAll();
       this.clearTransientFx();
       this.lastFeedbackKey = '';
@@ -385,9 +383,9 @@ export class App {
 
   private returnToTitle(): void {
     if (!this.raceManager) return;
-    this.clearAutoNextRaceTimer();
     this.raceManager.returnToMenu();
     this.audio.setPaused(true);
+    this.audio.setStandbyLoopActive(true);
     this.resultView.hide();
     this.hudView.setVisible(false);
     this.menuView.setVisible(true);
@@ -420,10 +418,13 @@ export class App {
 
     this.raceManager.update(dtSec, input);
     this.lastSnapshot = this.raceManager.getSnapshot();
+    const phase = this.lastSnapshot.race.phase;
+    const standbyPhase = phase === 'menu' || phase === 'paused' || phase === 'finished';
+    this.audio.setStandbyLoopActive(standbyPhase);
     this.handleMomentFeedback(this.lastSnapshot);
 
     const player = this.raceManager.getPlayerVehicle();
-    const active = this.lastSnapshot.race.phase === 'racing';
+    const active = phase === 'racing';
     this.audio.updateDrivingAudio(player.speedForward, player.slipRatio, active);
 
     if (this.settings.bestLapMs !== this.lastSnapshot.race.bestLapMs) {
@@ -435,7 +436,6 @@ export class App {
 
     if (this.lastSnapshot.race.phase === 'finished' && !this.resultView.isVisible()) {
       this.resultView.show(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
-      this.scheduleAutoNextRace();
       if (this.shouldUseMobileTouchUI()) {
         this.hudView.setVisible(false);
         this.input.clearAll();
@@ -941,20 +941,6 @@ export class App {
       this.trackCatalog.map((track) => track.id),
       { excludeId },
     );
-  }
-
-  private scheduleAutoNextRace(): void {
-    this.clearAutoNextRaceTimer();
-    this.autoNextRaceTimerId = window.setTimeout(() => {
-      this.autoNextRaceTimerId = null;
-      void this.handleStartRace({ excludeCurrentTrack: true });
-    }, AUTO_NEXT_RACE_DELAY_MS);
-  }
-
-  private clearAutoNextRaceTimer(): void {
-    if (this.autoNextRaceTimerId === null) return;
-    window.clearTimeout(this.autoNextRaceTimerId);
-    this.autoNextRaceTimerId = null;
   }
 
   private getMenuReadyStatus(isPortraitOnTouch: boolean): string {

@@ -24,10 +24,9 @@ export class ResultView {
         <h2 id="resultTitle" style="margin: 0 0 6px;">FINISH!</h2>
         <p id="resultVerdict" class="result-verdict">-</p>
         <p id="resultSubtitle" class="small">-</p>
-        <p class="small">2秒後に次のランダムコースへ進みます</p>
         <ul id="resultList" class="result-list"></ul>
         <div class="btn-row">
-          <button id="retryBtn" class="btn primary">次のランダムへ</button>
+          <button id="retryBtn" class="btn primary">別のコースをプレイ</button>
           <button id="titleBtn" class="btn">タイトルへ</button>
         </div>
       </div>
