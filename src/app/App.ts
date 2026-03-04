@@ -11,6 +11,7 @@ import { CameraRig } from '../render/CameraRig';
 import { Renderer } from '../render/Renderer';
 import { SceneBuilder } from '../render/SceneBuilder';
 import { TrackLoader, type TrackCatalogEntry } from '../track/TrackLoader';
+import { pickRandomTrackId } from '../track/randomTrack';
 import type { GraphicsQuality, InputState, OutOfBoundsReason, RaceSnapshot, SettingsData, TrackDefinition } from '../types/game';
 import { HudView } from '../ui/HudView';
 import { MenuView } from '../ui/MenuView';
@@ -25,6 +26,8 @@ const ZERO_INPUT: InputState = {
   pause: false,
   mute: false,
 };
+
+const AUTO_NEXT_RACE_DELAY_MS = 2000;
 
 interface TransientFx {
   root: THREE.Group;
@@ -80,11 +83,14 @@ export class App {
   private inputGuideTouchMode: boolean | null = null;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
+  private autoNextRaceTimerId: number | null = null;
+  private raceStartInFlight = false;
+  private trackChangeRequestSeq = 0;
 
   constructor(private readonly root: HTMLElement) {
     this.settings = this.settingsStore.load();
     this.trackCatalog = this.trackLoader.getTrackCatalog();
-    this.selectedTrackId = this.trackLoader.resolveTrackId(this.settings.trackId);
+    this.selectedTrackId = this.pickRandomTrackId();
     this.settings.trackId = this.selectedTrackId;
     this.input.setSteeringInverted(this.settings.invertSteer);
     this.audio = new AudioManager({ muted: this.settings.muted, masterVolume: this.settings.masterVolume });
@@ -139,6 +145,7 @@ export class App {
 
     this.bindViews();
     this.bindEvents();
+    this.menuView.setLoading(true);
   }
 
   async mount(): Promise<void> {
@@ -237,7 +244,7 @@ export class App {
     this.resultView.bind({
       onRetry: () => {
         this.playUiClick('primary');
-        void this.handleStartRace(true);
+        void this.handleStartRace({ excludeCurrentTrack: true });
       },
       onBackToTitle: () => {
         this.playUiClick('secondary');
@@ -325,32 +332,56 @@ export class App {
     });
   }
 
-  private async handleStartRace(fromRetry = false): Promise<void> {
-    if (!this.raceManager) return;
+  private async handleStartRace(options: { excludeCurrentTrack?: boolean } = {}): Promise<void> {
+    if (!this.raceManager || this.raceStartInFlight) return;
+    // Invalidate any in-flight manual map switch to avoid menu/race state races.
+    this.trackChangeRequestSeq += 1;
+    this.raceStartInFlight = true;
+    this.clearAutoNextRaceTimer();
     await this.tryForceLandscape(true);
-    await this.audio.unlock();
+    void this.audio.unlock().catch(() => {
+      // Audio unlock failures must not block race start (notably on WebKit paths).
+    });
 
-    this.resultView.hide();
-    this.menuView.setVisible(false);
-    this.hudView.setVisible(true);
-    this.hudView.setPaused(false);
-    this.audio.setPaused(false);
-    this.input.clearAll();
-    this.clearTransientFx();
-    this.lastFeedbackKey = '';
+    try {
+      const nextTrackId = this.pickRandomTrackId(options.excludeCurrentTrack ? this.selectedTrackId : undefined);
+      if (nextTrackId !== this.selectedTrackId) {
+        this.menuView.setLoading(true);
+        try {
+          const nextTrack = await this.trackLoader.loadTrack(nextTrackId);
+          this.clearTransientFx();
+          this.rebuildRaceForTrack(nextTrack);
+        } catch (error) {
+          console.error(error);
+          this.menuView.setStatus('ランダムコースの読み込みに失敗しました。現在のコースで開始します。');
+        } finally {
+          this.menuView.setLoading(false);
+          this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
+        }
+      } else {
+        this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
+      }
 
-    if (fromRetry) {
-      this.raceManager.restartRace();
-    } else {
+      this.resultView.hide();
+      this.menuView.setVisible(false);
+      this.hudView.setVisible(true);
+      this.hudView.setPaused(false);
+      this.audio.setPaused(false);
+      this.input.clearAll();
+      this.clearTransientFx();
+      this.lastFeedbackKey = '';
+
       this.raceManager.startRace();
+      this.lastSnapshot = this.raceManager.getSnapshot();
+      this.hudView.update(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
+    } finally {
+      this.raceStartInFlight = false;
     }
-
-    this.lastSnapshot = this.raceManager.getSnapshot();
-    this.hudView.update(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
   }
 
   private returnToTitle(): void {
     if (!this.raceManager) return;
+    this.clearAutoNextRaceTimer();
     this.raceManager.returnToMenu();
     this.audio.setPaused(true);
     this.resultView.hide();
@@ -360,6 +391,7 @@ export class App {
     this.clearTransientFx();
     this.lastFeedbackKey = '';
     this.lastSnapshot = this.raceManager.getSnapshot();
+    this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     this.refreshOrientationGuard();
   }
 
@@ -399,6 +431,7 @@ export class App {
 
     if (this.lastSnapshot.race.phase === 'finished' && !this.resultView.isVisible()) {
       this.resultView.show(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
+      this.scheduleAutoNextRace();
       if (this.shouldUseMobileTouchUI()) {
         this.hudView.setVisible(false);
         this.input.clearAll();
@@ -437,21 +470,34 @@ export class App {
     if (resolvedTrackId === this.selectedTrackId) return;
     if (this.raceManager && this.raceManager.getPhase() !== 'menu') return;
     if (!this.renderer) return;
+    const requestSeq = ++this.trackChangeRequestSeq;
 
     this.menuView.setLoading(true);
     try {
       const nextTrack = await this.trackLoader.loadTrack(resolvedTrackId);
+      if (requestSeq !== this.trackChangeRequestSeq) {
+        return;
+      }
+      if (!this.raceManager || this.raceManager.getPhase() !== 'menu' || this.raceStartInFlight) {
+        return;
+      }
       this.clearTransientFx();
       this.resultView.hide();
       this.hudView.setVisible(false);
       this.rebuildRaceForTrack(nextTrack);
       this.persistSettings();
     } catch (error) {
+      if (requestSeq !== this.trackChangeRequestSeq) {
+        return;
+      }
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
       this.lastMenuPortraitBlocked = this.isPortraitOnTouchDevice();
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
+      if (requestSeq !== this.trackChangeRequestSeq) {
+        return;
+      }
       this.menuView.setLoading(false);
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     }
@@ -460,7 +506,14 @@ export class App {
   private render(frameDtSec: number): void {
     if (!this.renderer || !this.raceManager || !this.cameraRig) return;
 
-    this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec);
+    const overdriveActive = this.lastSnapshot?.race.overdriveState === 'active';
+    const overdriveIntensity = overdriveActive
+      ? Math.max(0, Math.min(1, ((this.lastSnapshot?.race.overdriveSpeedMultiplier ?? 1) - 1) / 0.45))
+      : 0;
+    this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec, {
+      active: overdriveActive,
+      intensity01: overdriveIntensity,
+    });
     this.updateNextCheckpointBeacon(frameDtSec);
     this.updateShadowFlows(frameDtSec);
     this.updateTransientFx(frameDtSec);
@@ -876,6 +929,34 @@ export class App {
     this.settingsStore.save({ ...this.settings });
   }
 
+  private pickRandomTrackId(excludeId?: string): string {
+    return pickRandomTrackId(
+      this.trackCatalog.map((track) => track.id),
+      { excludeId },
+    );
+  }
+
+  private scheduleAutoNextRace(): void {
+    this.clearAutoNextRaceTimer();
+    this.autoNextRaceTimerId = window.setTimeout(() => {
+      this.autoNextRaceTimerId = null;
+      void this.handleStartRace({ excludeCurrentTrack: true });
+    }, AUTO_NEXT_RACE_DELAY_MS);
+  }
+
+  private clearAutoNextRaceTimer(): void {
+    if (this.autoNextRaceTimerId === null) return;
+    window.clearTimeout(this.autoNextRaceTimerId);
+    this.autoNextRaceTimerId = null;
+  }
+
+  private getMenuReadyStatus(isPortraitOnTouch: boolean): string {
+    if (isPortraitOnTouch) {
+      return '縦画面でも開始できます（横画面推奨） / 開始時にランダムコースを選びます';
+    }
+    return '開始時にランダムコースを選びます';
+  }
+
   private handleMomentFeedback(snapshot: RaceSnapshot): void {
     const key = `${snapshot.messageTone}:${snapshot.message ?? ''}:${snapshot.race.phase}`;
     if (key === this.lastFeedbackKey) return;
@@ -916,7 +997,7 @@ export class App {
       this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI() && isPortraitOnTouch);
       this.menuView.setPortraitStartBlocked(false);
       if (this.lastMenuPortraitBlocked !== isPortraitOnTouch) {
-        this.menuView.setStatus(isPortraitOnTouch ? '縦画面でも開始できます（横画面推奨）' : '準備OK');
+        this.menuView.setStatus(this.getMenuReadyStatus(isPortraitOnTouch));
         this.lastMenuPortraitBlocked = isPortraitOnTouch;
       }
     } else {
@@ -935,7 +1016,7 @@ export class App {
   private async handleAssistLandscape(): Promise<void> {
     const result = await this.tryForceLandscape(true);
     if (!this.isPortraitOnTouchDevice()) {
-      this.menuView.setStatus('準備OK');
+      this.menuView.setStatus(this.getMenuReadyStatus(false));
       this.lastMenuPortraitBlocked = false;
       return;
     }

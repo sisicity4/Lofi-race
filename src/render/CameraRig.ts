@@ -12,7 +12,11 @@ export class CameraRig {
 
   constructor(private readonly camera: THREE.PerspectiveCamera) {}
 
-  update(target: VehicleState | null, dtSec: number): void {
+  update(
+    target: VehicleState | null,
+    dtSec: number,
+    overdrive: { active: boolean; intensity01: number } = { active: false, intensity01: 0 },
+  ): void {
     if (!target) return;
 
     const speed = Math.abs(target.speedForward);
@@ -40,8 +44,12 @@ export class CameraRig {
     );
     this.camera.lookAt(this.lookAt);
 
-    const targetFov = lerp(60, 69, clamp(speed / 50, 0, 1));
-    this.camera.fov = smoothDamp(this.camera.fov, targetFov, 9, dtSec);
+    const baseFov = lerp(60, 69, clamp(speed / 50, 0, 1));
+    const overdriveIntensity = clamp(overdrive.intensity01, 0, 1);
+    const overdriveBoost = overdrive.active ? lerp(6, 12, overdriveIntensity) : 0;
+    const targetFov = clamp(baseFov + overdriveBoost, 60, 84);
+    const fovSmoothing = overdrive.active ? lerp(13, 17, overdriveIntensity) : 8.5;
+    this.camera.fov = smoothDamp(this.camera.fov, targetFov, fovSmoothing, dtSec);
     const targetRoll = clamp(target.steerVisual * -0.012 + target.slipRatio * 0.018 * Math.sign(target.steerVisual || 1), -0.022, 0.022);
     this.roll = smoothDamp(this.roll, targetRoll, 7, dtSec);
     if (Math.abs(this.roll) > 0.0001) {

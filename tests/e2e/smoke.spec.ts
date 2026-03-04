@@ -7,15 +7,23 @@ test('shows the title menu', async ({ page }) => {
 });
 
 test('can switch map from menu and start race', async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0;
+  });
   await page.goto('/');
   const trackSelect = page.locator('#trackSelect');
   await expect(trackSelect).toBeVisible();
+  await expect(trackSelect).toBeEnabled();
   await expect(trackSelect.locator('option')).toHaveCount(4);
 
   await trackSelect.selectOption('studio-gp-long-01');
-  await page.getByRole('button', { name: 'レース開始' }).click();
+  await expect(trackSelect).toHaveValue('studio-gp-long-01');
+  const startButton = page.getByRole('button', { name: 'レース開始' });
+  await expect(startButton).toBeEnabled();
+  await startButton.click();
 
-  await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
+  await expect(trackSelect).toHaveValue('raceway-gp-long-01');
 });
 
 test.describe('mobile', () => {
@@ -27,16 +35,19 @@ test.describe('mobile', () => {
   test('can start race in landscape touch layout', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+    await expect(page.locator('#trackSelect')).toBeEnabled();
     const startButton = page.getByRole('button', { name: 'レース開始' });
     await expect(startButton).toBeVisible();
+    await expect(startButton).toBeEnabled();
     await startButton.click();
 
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
     await expect(startButton).toBeHidden();
   });
 
   test('shows joystick controls and top-right mini speed dial', async ({ page }) => {
     await page.goto('/');
+    await expect(page.locator('#trackSelect')).toBeEnabled();
     await page.getByRole('button', { name: 'レース開始' }).click();
 
     const joystick = page.locator('#touchSteerZone');
@@ -58,8 +69,9 @@ test.describe('mobile', () => {
 
   test('keeps race playable when rotating to portrait', async ({ page }) => {
     await page.goto('/');
+    await expect(page.locator('#trackSelect')).toBeEnabled();
     await page.getByRole('button', { name: 'レース開始' }).click();
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
@@ -96,8 +108,9 @@ test.describe('mobile portrait title flow', () => {
 
     const startButton = page.locator('#startButton');
     await expect(startButton).toBeEnabled();
+    await expect(page.locator('#trackSelect')).toBeEnabled();
     await startButton.click();
 
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
   });
 });
