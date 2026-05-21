@@ -759,6 +759,27 @@ input[type='range'] {
   color: #7dedff;
 }
 
+.overdrive-hud.is-ready {
+  border-color: rgba(255, 209, 102, 0.58);
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(255, 209, 102, 0.24),
+    inset 0 0 0 1px rgba(255, 241, 184, 0.08);
+}
+
+.overdrive-hud.is-ready #overdriveState {
+  color: #ffedbf;
+}
+
+.overdrive-hud.is-ready .overdrive-meter > span {
+  background: linear-gradient(90deg, #ffd166, #7dffb3);
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.44);
+}
+
+.overdrive-hud.ready-pulse {
+  animation: overdriveReadyPulse 520ms ease-out;
+}
+
 .overdrive-hud[data-state='overheated'] {
   border-color: rgba(255, 123, 123, 0.42);
 }
@@ -883,6 +904,12 @@ input[type='range'] {
 @keyframes driftPulse {
   from { transform: translateX(-50%) scale(0.98); }
   to { transform: translateX(-50%) scale(1.03); }
+}
+
+@keyframes overdriveReadyPulse {
+  0% { transform: translateX(-50%) scale(0.96); }
+  45% { transform: translateX(-50%) scale(1.06); }
+  100% { transform: translateX(-50%) scale(1); }
 }
 
 .overdrive-edge-lines {
@@ -1349,6 +1376,21 @@ input[type='range'] {
 .center-overlay[data-rank='1'] .result-verdict,
 .center-overlay[data-rank='2'] .result-verdict {
   color: #ffedbf;
+}
+
+.result-achievement {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.16), rgba(0, 209, 178, 0.12));
+  color: #ffedbf;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 
 .result-list {
@@ -2168,6 +2210,10 @@ input[type='range'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .overdrive-hud.ready-pulse {
+    animation: none;
+  }
+
   .overdrive-edge-lines::before,
   .overdrive-edge-lines::after {
     animation: none;

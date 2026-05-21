@@ -11,6 +11,11 @@ describe('SceneBuilder.createCarMesh drift FX refs', () => {
       driftFxLeft?: THREE.Mesh;
       driftFxRight?: THREE.Mesh;
       driftFxMaterial?: THREE.MeshBasicMaterial;
+      speedTrailLeft?: THREE.Mesh;
+      speedTrailRight?: THREE.Mesh;
+      speedTrailMaterial?: THREE.MeshBasicMaterial;
+      rearGlow?: THREE.Mesh;
+      rearGlowMaterial?: THREE.MeshBasicMaterial;
     };
 
     expect(refs.driftFxLeft).toBeDefined();
@@ -20,5 +25,17 @@ describe('SceneBuilder.createCarMesh drift FX refs', () => {
     expect(refs.driftFxRight?.visible).toBe(false);
     expect(refs.driftFxMaterial?.transparent).toBe(true);
     expect(refs.driftFxMaterial?.opacity).toBe(0);
+    expect(refs.speedTrailLeft).toBeDefined();
+    expect(refs.speedTrailRight).toBeDefined();
+    expect(refs.speedTrailMaterial).toBeDefined();
+    expect(refs.speedTrailLeft?.visible).toBe(false);
+    expect(refs.speedTrailRight?.visible).toBe(false);
+    expect(refs.speedTrailMaterial?.transparent).toBe(true);
+    expect(refs.speedTrailMaterial?.opacity).toBe(0);
+    expect(refs.rearGlow).toBeDefined();
+    expect(refs.rearGlowMaterial).toBeDefined();
+    expect(refs.rearGlow?.visible).toBe(false);
+    expect(refs.rearGlowMaterial?.transparent).toBe(true);
+    expect(refs.rearGlowMaterial?.opacity).toBe(0);
   });
 });

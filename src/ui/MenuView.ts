@@ -190,7 +190,7 @@ export class MenuView {
 
   private syncStartButtonState(): void {
     this.startButton.disabled = this.loading || this.portraitStartBlocked;
-    this.startButton.textContent = this.loading ? '読み込み中...' : this.portraitStartBlocked ? '横画面で開始' : 'レース開始';
+    this.startButton.textContent = this.loading ? '読み込み中...' : this.portraitStartBlocked ? 'PCでプレイしてください' : 'レース開始';
   }
 
   private renderControlPills(): void {

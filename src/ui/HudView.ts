@@ -49,6 +49,8 @@ export class HudView {
   private lastShownFinish = false;
   private lastCountdownLabel: string | null = null;
   private lastPlayerRank: number | null = null;
+  private lastOverdriveReady = false;
+  private overdriveReadyTimer: number | null = null;
   private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
   private inputGuideMode: InputGuideMode = 'keyboard';
@@ -211,6 +213,12 @@ export class HudView {
       this.comboFillEl.style.transform = 'scaleX(0)';
       this.comboBadgeEl.dataset.source = 'none';
       this.overdriveHudEl.dataset.state = 'idle';
+      this.overdriveHudEl.classList.remove('is-ready', 'ready-pulse');
+      if (this.overdriveReadyTimer !== null) {
+        window.clearTimeout(this.overdriveReadyTimer);
+        this.overdriveReadyTimer = null;
+      }
+      this.lastOverdriveReady = false;
       this.overdriveStateEl.textContent = 'CHARGE';
       this.overdriveFillEl.style.transform = 'scaleX(0)';
       this.root.style.removeProperty('--overdrive-edge-opacity');
@@ -329,17 +337,32 @@ export class HudView {
     this.comboBadgeEl.dataset.source = snapshot.race.comboSource;
 
     const overdriveMeter = Math.max(0, Math.min(1, snapshot.race.overdriveMeter01));
+    const overdriveReady = snapshot.race.phase === 'racing' && snapshot.race.overdriveState === 'idle' && overdriveMeter >= 0.35;
     this.overdriveFillEl.style.transform = `scaleX(${overdriveMeter})`;
     this.overdriveHudEl.dataset.state = snapshot.race.overdriveState;
     if (snapshot.race.overdriveState === 'active') {
       this.overdriveStateEl.textContent = 'OD ON';
     } else if (snapshot.race.overdriveState === 'overheated') {
       this.overdriveStateEl.textContent = 'OVERHEAT';
-    } else if (overdriveMeter >= 0.35) {
+    } else if (overdriveReady) {
       this.overdriveStateEl.textContent = 'READY';
     } else {
       this.overdriveStateEl.textContent = 'CHARGE';
     }
+    this.overdriveHudEl.classList.toggle('is-ready', overdriveReady);
+    if (overdriveReady && !this.lastOverdriveReady) {
+      this.overdriveHudEl.classList.remove('ready-pulse');
+      void this.overdriveHudEl.offsetWidth;
+      this.overdriveHudEl.classList.add('ready-pulse');
+      if (this.overdriveReadyTimer !== null) {
+        window.clearTimeout(this.overdriveReadyTimer);
+      }
+      this.overdriveReadyTimer = window.setTimeout(() => {
+        this.overdriveHudEl.classList.remove('ready-pulse');
+        this.overdriveReadyTimer = null;
+      }, 520);
+    }
+    this.lastOverdriveReady = overdriveReady;
 
     if (playerEntry && this.lastPlayerRank !== null && playerEntry.rank !== this.lastPlayerRank) {
       this.flash(playerEntry.rank < this.lastPlayerRank ? 'overtake' : 'warn');

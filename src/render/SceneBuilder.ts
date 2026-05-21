@@ -175,10 +175,55 @@ export class SceneBuilder {
       driftFxLeft?: THREE.Mesh;
       driftFxRight?: THREE.Mesh;
       driftFxMaterial?: THREE.MeshBasicMaterial;
+      speedTrailLeft?: THREE.Mesh;
+      speedTrailRight?: THREE.Mesh;
+      speedTrailMaterial?: THREE.MeshBasicMaterial;
+      rearGlow?: THREE.Mesh;
+      rearGlowMaterial?: THREE.MeshBasicMaterial;
     };
     carFxRefs.driftFxLeft = driftFxLeft;
     carFxRefs.driftFxRight = driftFxRight;
     carFxRefs.driftFxMaterial = driftFxMat;
+
+    const speedTrailMat = new THREE.MeshBasicMaterial({
+      color: 0x9df7ff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const speedTrailGeo = new THREE.BoxGeometry(0.22, 0.08, 2.6);
+    const speedTrailLeft = new THREE.Mesh(speedTrailGeo, speedTrailMat);
+    speedTrailLeft.position.set(-0.62, 0.54, -2.25);
+    speedTrailLeft.visible = false;
+    speedTrailLeft.renderOrder = 9;
+    root.add(speedTrailLeft);
+
+    const speedTrailRight = new THREE.Mesh(speedTrailGeo, speedTrailMat);
+    speedTrailRight.position.set(0.62, 0.54, -2.25);
+    speedTrailRight.visible = false;
+    speedTrailRight.renderOrder = 9;
+    root.add(speedTrailRight);
+
+    const rearGlowMat = new THREE.MeshBasicMaterial({
+      color: 0x7dfbe4,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const rearGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.48), rearGlowMat);
+    rearGlow.position.set(0, 0.62, -2.08);
+    rearGlow.visible = false;
+    rearGlow.renderOrder = 10;
+    root.add(rearGlow);
+
+    carFxRefs.speedTrailLeft = speedTrailLeft;
+    carFxRefs.speedTrailRight = speedTrailRight;
+    carFxRefs.speedTrailMaterial = speedTrailMat;
+    carFxRefs.rearGlow = rearGlow;
+    carFxRefs.rearGlowMaterial = rearGlowMat;
 
     const shadow = new THREE.Mesh(
       new THREE.CircleGeometry(1.8, 12),
