@@ -149,6 +149,33 @@ describe('RaceManager overdrive', () => {
     expect(snapshot.race.overdriveActiveMs).toBeGreaterThan(0);
   });
 
+  it('preserves held boost through countdown and auto-activates after race start', () => {
+    const raceManager = new RaceManager({
+      track: createFallbackCoastalTrack(),
+      config: { ...DEFAULT_GAME_CONFIG, cpuCount: 0 },
+      vehicleParams: DEFAULT_VEHICLE_PARAMS,
+      eventBus: new EventBus<GameEvents>(),
+      initialBestLapMs: null,
+    });
+
+    raceManager.startRace();
+    (raceManager as unknown as { overdriveMeter01: number }).overdriveMeter01 = 0.34;
+    raceManager.update(1.0, { ...NO_INPUT, boostHeld: true });
+    raceManager.update(1.0, { ...NO_INPUT, boostHeld: true });
+    raceManager.update(1.0, { ...NO_INPUT, boostHeld: true });
+    expect(raceManager.getPhase()).toBe('racing');
+
+    for (let i = 0; i < 120; i += 1) {
+      placePlayerInRiskState(raceManager, i);
+      raceManager.update(1 / 60, { ...NO_INPUT, throttle: 1, boostHeld: true });
+      if (raceManager.getSnapshot().race.overdriveState === 'active') break;
+    }
+
+    const snapshot = raceManager.getSnapshot();
+    expect(snapshot.race.overdriveState).toBe('active');
+    expect(snapshot.race.overdriveActiveMs).toBeGreaterThan(0);
+  });
+
   it('accelerates faster during active overdrive than normal driving', () => {
     const raceManager = new RaceManager({
       track: createFallbackCoastalTrack(),
