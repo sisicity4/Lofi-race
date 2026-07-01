@@ -1,7 +1,6 @@
 import { formatMs } from '../core/math';
 import type { RaceSnapshot } from '../types/game';
-import type { InputManager, TouchAction } from '../input/InputManager';
-import { buildDesktopControlGuideRows, buildTouchGuideRows, type InputGuideRow } from '../input/bindings';
+import { buildDesktopControlGuideRows, type InputGuideRow } from '../input/bindings';
 
 interface HudCallbacks {
   onPauseButton: () => void;
@@ -10,7 +9,6 @@ interface HudCallbacks {
 }
 
 type FlashKind = 'go' | 'lap' | 'hit' | 'finish' | 'overtake' | 'warn';
-type InputGuideMode = 'keyboard' | 'touch';
 
 export class HudView {
   readonly root: HTMLDivElement;
@@ -24,9 +22,6 @@ export class HudView {
   private readonly messageEl: HTMLDivElement;
   private readonly pausePanel: HTMLDivElement;
   private readonly pauseBtn: HTMLButtonElement;
-  private readonly portraitOverlay: HTMLDivElement;
-  private readonly touchControls: HTMLDivElement;
-  private readonly mobileBanner: HTMLDivElement;
   private readonly speedDialEl: HTMLDivElement;
   private readonly overdriveHudEl: HTMLDivElement;
   private readonly overdriveStateEl: HTMLSpanElement;
@@ -40,11 +35,6 @@ export class HudView {
   private readonly flashEl: HTMLDivElement;
   private readonly keybindsSectionEl: HTMLElement;
   private readonly keybindListEl: HTMLUListElement;
-  private readonly touchGuideSectionEl: HTMLElement;
-  private readonly touchGuideListEl: HTMLUListElement;
-  private readonly touchSteerZone: HTMLDivElement | null;
-  private readonly touchSteerThumb: HTMLDivElement | null;
-  private readonly touchButtons = new Map<TouchAction, HTMLButtonElement>();
   private callbacks: Partial<HudCallbacks> = {};
   private lastShownFinish = false;
   private lastCountdownLabel: string | null = null;
@@ -53,8 +43,6 @@ export class HudView {
   private overdriveReadyTimer: number | null = null;
   private lastLeaderboardKey = '';
   private flashTimer: number | null = null;
-  private inputGuideMode: InputGuideMode = 'keyboard';
-  private steerInverted = true;
 
   constructor(parent: HTMLElement, private readonly shell: HTMLElement) {
     this.root = document.createElement('div');
@@ -95,11 +83,6 @@ export class HudView {
         <h3>CONTROLS</h3>
         <ul id="hudKeybindList" class="keybind-list"></ul>
       </section>
-      <section id="hudTouchGuide" class="hud-touch-guide panel hidden" aria-label="touch controls">
-        <h3>TOUCH</h3>
-        <ul id="hudTouchGuideList" class="keybind-list"></ul>
-      </section>
-
       <div class="speed-dial panel" id="speedDial">
         <div class="mini-label">SPEED</div>
         <div class="speed-value" id="hudSpeed">0</div>
@@ -123,10 +106,6 @@ export class HudView {
       <div id="overdriveEdgeLines" class="overdrive-edge-lines"></div>
       <div id="driftLines" class="drift-lines"></div>
       <div id="flashEl" class="hud-flash"></div>
-
-      <div id="touchControls" class="touch-controls"></div>
-      <div id="mobileBanner" class="mobile-banner hidden">モバイル対応 / 横画面推奨 / タッチ操作</div>
-      <div id="portraitOverlay" class="portrait-overlay hidden">横画面にするとコーナーが見やすくなります</div>
 
       <div id="pausePanel" class="center-overlay hidden">
         <div class="panel center-card">
@@ -152,9 +131,6 @@ export class HudView {
     this.messageEl = this.root.querySelector('#messageEl') as HTMLDivElement;
     this.pausePanel = this.root.querySelector('#pausePanel') as HTMLDivElement;
     this.pauseBtn = this.root.querySelector('#pauseBtn') as HTMLButtonElement;
-    this.portraitOverlay = this.root.querySelector('#portraitOverlay') as HTMLDivElement;
-    this.touchControls = this.root.querySelector('#touchControls') as HTMLDivElement;
-    this.mobileBanner = this.root.querySelector('#mobileBanner') as HTMLDivElement;
     this.speedDialEl = this.root.querySelector('#speedDial') as HTMLDivElement;
     this.overdriveHudEl = this.root.querySelector('#overdriveHud') as HTMLDivElement;
     this.overdriveStateEl = this.root.querySelector('#overdriveState') as HTMLSpanElement;
@@ -168,13 +144,8 @@ export class HudView {
     this.flashEl = this.root.querySelector('#flashEl') as HTMLDivElement;
     this.keybindsSectionEl = this.root.querySelector('#hudKeybinds') as HTMLElement;
     this.keybindListEl = this.root.querySelector('#hudKeybindList') as HTMLUListElement;
-    this.touchGuideSectionEl = this.root.querySelector('#hudTouchGuide') as HTMLElement;
-    this.touchGuideListEl = this.root.querySelector('#hudTouchGuideList') as HTMLUListElement;
 
-    this.buildTouchControls();
     this.renderInputGuides();
-    this.touchSteerZone = this.root.querySelector('#touchSteerZone');
-    this.touchSteerThumb = this.root.querySelector('#touchSteerThumb');
 
     const resumeBtn = this.root.querySelector('#resumeBtn') as HTMLButtonElement;
     const pauseTitleBtn = this.root.querySelector('#pauseTitleBtn') as HTMLButtonElement;
@@ -182,11 +153,6 @@ export class HudView {
     resumeBtn.addEventListener('click', () => this.callbacks.onResumeButton?.());
     pauseTitleBtn.addEventListener('click', () => this.callbacks.onTitleButton?.());
 
-    this.refreshOrientation();
-    window.addEventListener('resize', () => this.refreshOrientation());
-    if (screen.orientation) {
-      screen.orientation.addEventListener?.('change', () => this.refreshOrientation());
-    }
   }
 
   bind(callbacks: HudCallbacks): void {
@@ -233,33 +199,7 @@ export class HudView {
     this.pauseBtn.textContent = paused ? '▶' : 'II';
   }
 
-  setTouchEnabled(enabled: boolean): void {
-    this.touchControls.classList.toggle('hidden', !enabled);
-    this.mobileBanner.classList.toggle('hidden', !enabled);
-    this.root.classList.toggle('touch-layout', enabled);
-    this.setInputGuideMode(enabled ? 'touch' : 'keyboard');
-  }
-
-  setInputGuideMode(mode: InputGuideMode): void {
-    if (this.inputGuideMode === mode) return;
-    this.inputGuideMode = mode;
-    this.renderInputGuides();
-  }
-
-  setSteerInverted(inverted: boolean): void {
-    if (this.steerInverted === inverted) return;
-    this.steerInverted = inverted;
-    this.renderInputGuides();
-  }
-
-  bindTouchControls(input: InputManager): void {
-    if (this.touchSteerZone && this.touchSteerThumb) {
-      input.bindVirtualJoystick(this.touchSteerZone, this.touchSteerThumb);
-    }
-    for (const [action, button] of this.touchButtons) {
-      input.bindTouchButton(button, action);
-    }
-  }
+  setSteerInverted(_inverted: boolean): void {}
 
   flash(kind: FlashKind): void {
     this.clearFlash();
@@ -402,44 +342,6 @@ export class HudView {
     }
   }
 
-  private buildTouchControls(): void {
-    const leftCluster = document.createElement('div');
-    leftCluster.className = 'touch-cluster touch-left';
-    const rightCluster = document.createElement('div');
-    rightCluster.className = 'touch-cluster touch-right';
-    const joystick = document.createElement('div');
-    joystick.id = 'touchSteerZone';
-    joystick.className = 'touch-joystick';
-    joystick.innerHTML = `
-      <div class="touch-joystick-ring"></div>
-      <div id="touchSteerThumb" class="touch-joystick-thumb"></div>
-    `;
-
-    const makeBtn = (action: TouchAction, label: string, classes = ''): HTMLButtonElement => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `touch-btn ${classes}`.trim();
-      btn.textContent = label;
-      this.touchButtons.set(action, btn);
-      return btn;
-    };
-
-    leftCluster.append(joystick);
-
-    rightCluster.append(makeBtn('throttle', 'GO', 'primary touch-main'));
-    rightCluster.append(makeBtn('brake', 'BRAKE', 'touch-secondary'));
-    rightCluster.append(makeBtn('handbrake', 'DRIFT', 'large touch-drift'));
-    rightCluster.append(makeBtn('boost', 'BOOST', 'small touch-boost'));
-
-    this.touchControls.append(leftCluster, rightCluster);
-  }
-
-  private refreshOrientation(): void {
-    const isPortrait = window.innerHeight > window.innerWidth;
-    this.shell.classList.toggle('is-portrait', isPortrait);
-    this.portraitOverlay.classList.add('hidden');
-  }
-
   private restartCountdownPulse(): void {
     this.countdownEl.classList.remove('pulse');
     void this.countdownEl.offsetWidth;
@@ -497,15 +399,7 @@ export class HudView {
   private renderInputGuides(): void {
     const keyboardRows = buildDesktopControlGuideRows();
     this.renderGuideList(this.keybindListEl, keyboardRows);
-
-    const touchRows = buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost', 'pause'], {
-      steerInverted: this.steerInverted,
-    });
-    this.renderGuideList(this.touchGuideListEl, touchRows);
-
-    const touchMode = this.inputGuideMode === 'touch';
-    this.keybindsSectionEl.classList.toggle('hidden', touchMode);
-    this.touchGuideSectionEl.classList.toggle('hidden', !touchMode);
+    this.keybindsSectionEl.classList.remove('hidden');
   }
 
   private renderGuideList(target: HTMLUListElement, rows: readonly InputGuideRow[]): void {

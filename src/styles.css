@@ -11,8 +11,6 @@
   --warn: #ff7b7b;
   --good: #7dffb3;
   --shadow: rgba(0, 0, 0, 0.35);
-  --touch-size: 64px;
-  --touch-stick-size: 116px;
   --font-ui: "Avenir Next", "SF Pro Display", "Hiragino Sans", "Yu Gothic", sans-serif;
   --font-title: "Avenir Next Condensed", "Arial Narrow", "Hiragino Kaku Gothic ProN", sans-serif;
 }
@@ -489,18 +487,7 @@ input[type='range'] {
 }
 
 .hud-keybinds,
-.hud-touch-guide {
-  position: absolute;
-  left: max(12px, env(safe-area-inset-left));
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  width: min(340px, 42vw);
-  padding: 10px;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(4, 17, 28, 0.62), rgba(3, 12, 20, 0.78));
-}
-
-.hud-keybinds h3,
-.hud-touch-guide h3 {
+.hud-keybinds h3 {
   margin: 0 0 7px;
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -1056,16 +1043,6 @@ input[type='range'] {
   transition: opacity 120ms ease;
 }
 
-.hud-focus,
-.hud-side,
-.hud-keybinds,
-.hud-touch-guide,
-.speed-dial,
-.drift-badge,
-.message-banner {
-  z-index: 4;
-}
-
 .countdown {
   z-index: 5;
 }
@@ -1157,215 +1134,6 @@ input[type='range'] {
   background: radial-gradient(circle at center, rgba(255, 123, 123, 0.13), transparent 55%);
 }
 
-.touch-controls {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 12;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.touch-cluster {
-  position: absolute;
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  display: grid;
-  gap: 8px;
-  pointer-events: auto;
-  z-index: 13;
-}
-
-.touch-left {
-  left: calc(12px + env(safe-area-inset-left));
-  grid-template-columns: 1fr;
-  justify-items: start;
-}
-
-.touch-right {
-  right: calc(12px + env(safe-area-inset-right));
-  grid-template-columns: repeat(2, var(--touch-size));
-  grid-template-areas:
-    "go brake"
-    "drift drift"
-    ". boost";
-  justify-items: end;
-  align-content: end;
-}
-
-.touch-joystick {
-  width: var(--touch-stick-size);
-  height: var(--touch-stick-size);
-  position: relative;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background:
-    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.08), transparent 52%),
-    radial-gradient(circle at 50% 58%, rgba(3, 16, 27, 0.65), rgba(2, 10, 17, 0.8));
-  box-shadow:
-    0 12px 22px rgba(0, 0, 0, 0.26),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: none;
-}
-
-.touch-joystick::before {
-  content: "";
-  position: absolute;
-  inset: 16%;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.touch-joystick-ring {
-  position: absolute;
-  inset: 10%;
-  border-radius: 999px;
-  border: 1px dashed rgba(0, 209, 178, 0.28);
-  opacity: 0.75;
-  pointer-events: none;
-}
-
-.touch-joystick-thumb {
-  width: calc(var(--touch-stick-size) * 0.38);
-  height: calc(var(--touch-stick-size) * 0.38);
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.22), transparent 58%),
-    linear-gradient(180deg, rgba(7, 24, 38, 0.95), rgba(4, 14, 23, 0.95));
-  box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  transition: transform 90ms ease-out, background-color 90ms ease-out;
-  will-change: transform;
-  pointer-events: none;
-}
-
-.touch-joystick.active {
-  border-color: rgba(0, 209, 178, 0.34);
-  box-shadow:
-    0 14px 26px rgba(0, 0, 0, 0.28),
-    0 0 24px rgba(0, 209, 178, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-}
-
-.touch-joystick.active .touch-joystick-ring {
-  border-color: rgba(0, 209, 178, 0.42);
-}
-
-.touch-joystick-thumb.active {
-  transition: none;
-  background:
-    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.28), transparent 58%),
-    linear-gradient(180deg, rgba(13, 44, 63, 0.98), rgba(5, 19, 31, 0.98));
-}
-
-.touch-btn {
-  width: var(--touch-size);
-  height: var(--touch-size);
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(2, 13, 21, 0.55);
-  color: var(--text);
-  display: grid;
-  place-items: center;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: none;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.26);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  white-space: nowrap;
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  text-transform: none;
-  padding: 0 6px;
-}
-
-.touch-btn.large {
-  grid-column: span 2;
-  width: calc(var(--touch-size) * 2 + 8px);
-}
-
-.touch-btn.small {
-  width: calc(var(--touch-size) * 1.38);
-  height: calc(var(--touch-size) * 0.62);
-  font-size: 10px;
-  border-radius: 12px;
-}
-
-.touch-btn.touch-main {
-  grid-area: go;
-  background:
-    linear-gradient(180deg, rgba(0, 209, 178, 0.28), rgba(2, 13, 21, 0.62)),
-    rgba(2, 13, 21, 0.55);
-}
-
-.touch-btn.touch-secondary {
-  grid-area: brake;
-}
-
-.touch-btn.touch-drift {
-  grid-area: drift;
-}
-
-.touch-btn.touch-boost {
-  grid-area: boost;
-  justify-self: end;
-  border-color: rgba(125, 211, 252, 0.34);
-  background:
-    linear-gradient(180deg, rgba(59, 215, 255, 0.28), rgba(2, 13, 21, 0.62)),
-    rgba(2, 13, 21, 0.55);
-}
-
-.touch-btn.active {
-  background: rgba(0, 209, 178, 0.26);
-  border-color: rgba(0, 209, 178, 0.45);
-}
-
-.touch-btn.warn.active {
-  background: rgba(255, 123, 123, 0.22);
-  border-color: rgba(255, 123, 123, 0.42);
-}
-
-.mobile-banner,
-.portrait-overlay {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  background: rgba(2, 13, 21, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.mobile-banner {
-  bottom: calc(154px + env(safe-area-inset-bottom));
-}
-
-.portrait-overlay {
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: none;
-  max-width: 80vw;
-  text-align: center;
-}
-
-.game-shell.is-portrait .portrait-overlay {
-  display: none;
-}
-
 .result-verdict {
   margin: 0 0 8px;
   font-size: 14px;
@@ -1419,7 +1187,6 @@ input[type='range'] {
 
 @media (max-width: 920px) {
   :root {
-    --touch-size: 58px;
   }
 
   .control-pills {
@@ -1463,11 +1230,6 @@ input[type='range'] {
     top: calc(110px + env(safe-area-inset-top));
   }
 
-  .hud-keybinds,
-  .hud-touch-guide {
-    width: min(312px, 46vw);
-  }
-
   .keybind-list {
     grid-template-columns: 1fr;
   }
@@ -1475,8 +1237,6 @@ input[type='range'] {
 
 @media (pointer: coarse) {
   :root {
-    --touch-size: 74px;
-    --touch-stick-size: 122px;
   }
 
   .center-overlay {
@@ -1511,10 +1271,6 @@ input[type='range'] {
     gap: 0;
   }
 
-  .hud.touch-layout .hud-keybinds {
-    display: none;
-  }
-
   .leaderboard {
     display: none;
   }
@@ -1540,36 +1296,6 @@ input[type='range'] {
 
   .drift-lines {
     z-index: 3;
-  }
-
-  .hud.touch-layout {
-    --overdrive-edge-mobile-damp: 0.78;
-  }
-
-  .hud.touch-layout .overdrive-edge-lines::before,
-  .hud.touch-layout .overdrive-edge-lines::after {
-    opacity: calc(var(--overdrive-edge-opacity, 0) * var(--overdrive-edge-mobile-damp, 1));
-  }
-
-  .touch-cluster {
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    gap: 8px;
-  }
-
-  .touch-btn {
-    border-radius: 16px;
-    font-size: 12px;
-  }
-
-  .touch-btn.large {
-    width: calc(var(--touch-size) * 2 + 10px);
-  }
-
-  .mobile-banner {
-    bottom: calc(148px + env(safe-area-inset-bottom));
-    max-width: min(88vw, 520px);
-    font-size: 11px;
-    padding: 7px 9px;
   }
 
   .menu-card {
@@ -1600,151 +1326,6 @@ input[type='range'] {
   .menu-settings {
     order: 4;
     margin-bottom: 8px;
-  }
-
-  .hud.touch-layout .hud-focus {
-    width: min(262px, calc(100vw - 170px));
-    max-width: calc(100vw - 170px);
-    padding: 9px 10px;
-  }
-
-  .hud.touch-layout .hud-focus-top {
-    margin-bottom: 6px;
-    gap: 8px;
-  }
-
-  .hud.touch-layout .hud-focus-grid {
-    gap: 6px;
-  }
-
-  .hud.touch-layout .stat-block {
-    padding: 6px 7px;
-    border-radius: 10px;
-  }
-
-  .hud.touch-layout .stat-value {
-    font-size: 12px;
-  }
-
-  .hud.touch-layout .lap-main {
-    font-size: 13px;
-  }
-
-  .hud.touch-layout .focus-rank {
-    font-size: 20px;
-  }
-
-  .hud.touch-layout .hud-touch-guide {
-    top: calc(96px + env(safe-area-inset-top));
-    bottom: auto;
-    width: min(262px, calc(100vw - 170px));
-    max-width: calc(100vw - 170px);
-  }
-
-  .hud.touch-layout .speed-dial {
-    left: auto;
-    right: calc(10px + env(safe-area-inset-right));
-    top: calc(58px + env(safe-area-inset-top));
-    bottom: auto;
-    transform: none;
-    width: min(132px, 34vw);
-    padding: 7px 10px 7px;
-    border-radius: 12px;
-    z-index: 14;
-  }
-
-  .hud.touch-layout .overdrive-hud {
-    left: auto;
-    right: calc(10px + env(safe-area-inset-right));
-    top: calc(118px + env(safe-area-inset-top));
-    bottom: auto;
-    transform: none;
-    width: min(132px, 34vw);
-    padding: 6px 8px 7px;
-    border-radius: 11px;
-    z-index: 14;
-  }
-
-  .hud.touch-layout .overdrive-head #overdriveState {
-    font-size: 9px;
-    letter-spacing: 0.06em;
-  }
-
-  .hud.touch-layout .speed-value {
-    font-size: clamp(24px, 4.4vw, 30px);
-    margin-top: 0;
-    letter-spacing: 0.02em;
-  }
-
-  .hud.touch-layout .speed-unit {
-    font-size: 9px;
-    letter-spacing: 0.12em;
-  }
-
-  .hud.touch-layout .drift-badge {
-    left: auto;
-    right: calc(12px + env(safe-area-inset-right));
-    top: calc(168px + env(safe-area-inset-top));
-    bottom: auto;
-    transform: none;
-    padding: 4px 8px;
-    font-size: 10px;
-    z-index: 14;
-  }
-
-  .hud.touch-layout .combo-badge {
-    left: auto;
-    right: calc(10px + env(safe-area-inset-right));
-    transform: none;
-    top: calc(208px + env(safe-area-inset-top));
-    min-width: 154px;
-    padding: 7px 10px 8px;
-  }
-
-  .hud.touch-layout .combo-head {
-    font-size: 11px;
-    letter-spacing: 0.1em;
-  }
-
-  .hud.touch-layout .combo-head span:last-child {
-    font-size: 18px;
-  }
-
-  .hud.touch-layout .message-banner {
-    top: calc(86px + env(safe-area-inset-top));
-    max-width: min(52vw, 360px);
-    padding: 6px 10px;
-  }
-
-  .hud.touch-layout .touch-cluster {
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    gap: 6px;
-  }
-
-  .hud.touch-layout .touch-left {
-    left: calc(8px + env(safe-area-inset-left));
-  }
-
-  .hud.touch-layout .touch-right {
-    right: calc(8px + env(safe-area-inset-right));
-    gap: 6px;
-  }
-
-  .hud.touch-layout .touch-btn {
-    border-radius: 14px;
-    font-size: 11px;
-    padding: 0 5px;
-  }
-
-  .hud.touch-layout .touch-btn.small {
-    width: calc(var(--touch-size) * 1.18);
-    height: calc(var(--touch-size) * 0.52);
-    font-size: 9px;
-  }
-
-  .hud.touch-layout .mobile-banner {
-    bottom: calc(132px + env(safe-area-inset-bottom));
-    max-width: min(62vw, 360px);
   }
 
   .center-overlay .center-card {
@@ -1790,11 +1371,6 @@ input[type='range'] {
     width: min(168px, 52vw);
     bottom: calc(238px + env(safe-area-inset-bottom));
   }
-
-  .hud-keybinds,
-  .hud-touch-guide {
-    width: min(280px, 48vw);
-  }
 }
 
 @media (max-width: 540px) {
@@ -1839,7 +1415,6 @@ input[type='range'] {
 
 @media (pointer: coarse) and (max-height: 620px) {
   :root {
-    --touch-stick-size: 112px;
   }
 
   .center-overlay {
@@ -1911,33 +1486,10 @@ input[type='range'] {
     padding: 7px 8px;
     gap: 8px;
   }
-
-  .hud.touch-layout .speed-dial {
-    width: min(124px, 32vw);
-    top: calc(54px + env(safe-area-inset-top));
-    padding: 6px 9px;
-  }
-
-  .hud.touch-layout .overdrive-hud {
-    width: min(124px, 32vw);
-    top: calc(98px + env(safe-area-inset-top));
-    padding: 5px 8px 6px;
-  }
-
-  .hud.touch-layout .drift-badge {
-    top: calc(144px + env(safe-area-inset-top));
-  }
-
-  .hud.touch-layout .message-banner {
-    top: calc(76px + env(safe-area-inset-top));
-    max-width: min(48vw, 320px);
-  }
 }
 
 @media (pointer: coarse) and (max-height: 520px) {
   :root {
-    --touch-size: 62px;
-    --touch-stick-size: 102px;
   }
 
   .hud-focus {
@@ -2012,109 +1564,10 @@ input[type='range'] {
     padding: 4px 9px;
     font-size: 10px;
   }
-
-  .touch-cluster {
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    gap: 6px;
-  }
-
-  .touch-left {
-    left: calc(8px + env(safe-area-inset-left));
-  }
-
-  .touch-right {
-    right: calc(8px + env(safe-area-inset-right));
-  }
-
-  .touch-btn {
-    border-radius: 14px;
-    font-size: 10px;
-    padding: 0 4px;
-    box-shadow: 0 7px 16px rgba(0, 0, 0, 0.24);
-  }
-
-  .touch-btn.large {
-    width: calc(var(--touch-size) * 2 + 6px);
-  }
-
-  .mobile-banner {
-    bottom: calc(124px + env(safe-area-inset-bottom));
-    font-size: 10px;
-    padding: 6px 8px;
-  }
-
-  .hud.touch-layout {
-    --overdrive-edge-mobile-damp: 0.7;
-  }
-
-  .hud.touch-layout .hud-focus {
-    width: min(238px, calc(100vw - 150px));
-    max-width: calc(100vw - 150px);
-    padding: 8px;
-  }
-
-  .hud.touch-layout .speed-dial {
-    width: min(112px, 31vw);
-    top: calc(50px + env(safe-area-inset-top));
-    right: calc(8px + env(safe-area-inset-right));
-    padding: 5px 8px 6px;
-  }
-
-  .hud.touch-layout .overdrive-hud {
-    width: min(112px, 31vw);
-    top: calc(88px + env(safe-area-inset-top));
-    right: calc(8px + env(safe-area-inset-right));
-    padding: 4px 7px 5px;
-  }
-
-  .hud.touch-layout .speed-value {
-    font-size: clamp(20px, 4vw, 26px);
-  }
-
-  .hud.touch-layout .speed-unit {
-    font-size: 8px;
-  }
-
-  .hud.touch-layout .drift-badge {
-    top: calc(134px + env(safe-area-inset-top));
-    right: calc(8px + env(safe-area-inset-right));
-    font-size: 9px;
-    padding: 3px 7px;
-  }
-
-  .hud.touch-layout .combo-badge {
-    top: calc(172px + env(safe-area-inset-top));
-    right: calc(8px + env(safe-area-inset-right));
-    min-width: 132px;
-    padding: 6px 8px 7px;
-  }
-
-  .hud.touch-layout .message-banner {
-    top: calc(66px + env(safe-area-inset-top));
-    max-width: min(46vw, 300px);
-    font-size: 10px;
-    padding: 5px 8px;
-  }
-
-  .hud.touch-layout .touch-btn {
-    font-size: 10px;
-  }
-
-  .hud.touch-layout .touch-btn.small {
-    width: calc(var(--touch-size) * 1.08);
-    height: calc(var(--touch-size) * 0.5);
-    font-size: 8px;
-  }
-
-  .hud.touch-layout .mobile-banner {
-    bottom: calc(112px + env(safe-area-inset-bottom));
-    max-width: min(56vw, 300px);
-  }
 }
 
 @media (pointer: coarse) and (max-height: 430px) {
   :root {
-    --touch-stick-size: 92px;
   }
 
   .hud-focus-grid {
@@ -2129,54 +1582,8 @@ input[type='range'] {
     top: calc(52px + env(safe-area-inset-top));
   }
 
-  .mobile-banner {
-    display: none;
-  }
-
   .menu-settings {
     display: none;
-  }
-
-  .hud.touch-layout {
-    --overdrive-edge-mobile-damp: 0.62;
-  }
-
-  .hud.touch-layout .hud-focus {
-    width: min(214px, calc(100vw - 138px));
-    max-width: calc(100vw - 138px);
-    padding: 7px;
-  }
-
-  .hud.touch-layout .speed-dial {
-    width: min(102px, 29vw);
-    top: calc(46px + env(safe-area-inset-top));
-  }
-
-  .hud.touch-layout .overdrive-hud {
-    width: min(102px, 29vw);
-    top: calc(80px + env(safe-area-inset-top));
-  }
-
-  .hud.touch-layout .speed-value {
-    font-size: clamp(18px, 3.8vw, 24px);
-  }
-
-  .hud.touch-layout .drift-badge {
-    top: calc(118px + env(safe-area-inset-top));
-    font-size: 8px;
-  }
-
-  .hud.touch-layout .combo-badge {
-    top: calc(152px + env(safe-area-inset-top));
-    min-width: 120px;
-  }
-
-  .hud.touch-layout .combo-head {
-    font-size: 9px;
-  }
-
-  .hud.touch-layout .combo-head span:last-child {
-    font-size: 14px;
   }
 }
 
@@ -2189,11 +1596,6 @@ input[type='range'] {
     width: min(320px, calc(100vw - 42px));
   }
 
-  .touch-controls,
-  .mobile-banner {
-    display: none;
-  }
-
   .speed-dial,
   .overdrive-hud,
   .drift-badge {
@@ -2202,11 +1604,6 @@ input[type='range'] {
 }
 
 @media (min-width: 901px) and (pointer: fine) {
-  .touch-controls,
-  .mobile-banner,
-  .portrait-overlay {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

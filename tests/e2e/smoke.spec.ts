@@ -73,12 +73,25 @@ test.describe('mobile portrait title flow', () => {
     await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
 
     const startButton = page.locator('#startButton');
-    const assistButton = page.locator('#assistLandscapeButton');
 
     await expect(startButton).toBeVisible();
     await expect(startButton).toBeDisabled();
     await expect(startButton).toHaveText('PCでプレイしてください');
-    await expect(assistButton).toBeHidden();
+    await expect(page.locator('#assistLandscapeButton')).toHaveCount(0);
+    await expect(page.locator('#trackSelect')).toBeDisabled();
+  });
+});
+
+test.describe('touch-enabled desktop', () => {
+  test.use({
+    viewport: { width: 1280, height: 800 },
+    hasTouch: true,
+  });
+
+  test('does not block large touch-capable desktop viewports', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('PCでプレイしてください')).toBeHidden();
+    await expect(page.locator('#startButton')).toBeEnabled();
     await expect(page.locator('#trackSelect')).toBeEnabled();
   });
 });

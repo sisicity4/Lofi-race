@@ -54,8 +54,6 @@ export class App {
   private readonly hudView: HudView;
   private readonly resultView: ResultView;
   private readonly orientationGateEl: HTMLDivElement;
-  private readonly orientationGateButton: HTMLButtonElement;
-  private readonly orientationGateHint: HTMLParagraphElement;
   private readonly input = new InputManager();
   private readonly settingsStore = new SettingsStore();
   private readonly eventBus = new EventBus<GameEvents>();
@@ -83,7 +81,7 @@ export class App {
   private lastFeedbackKey = '';
   private lastInputWarningsKey = '';
   private lastInputDebug: InputDebugState | null = null;
-  private inputGuideTouchMode: boolean | null = null;
+  private lastMobileUnsupported: boolean | null = null;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
   private menuTrackSelectionId: string;
@@ -119,19 +117,10 @@ export class App {
         <p class="eyebrow">PC BROWSER ONLY</p>
         <h2 class="orientation-gate-title">PCでプレイしてください</h2>
         <p class="orientation-gate-body">スマホ版の開発は一旦停止中です。キーボードで遊べるPCブラウザからアクセスしてください。</p>
-        <div class="btn-row">
-          <button id="orientationGateButton" class="btn primary">PCで開いて遊ぶ</button>
-        </div>
         <p id="orientationGateHint" class="small orientation-gate-hint">この端末ではレース開始を無効化しています。</p>
       </div>
     `;
     this.uiLayer.append(this.orientationGateEl);
-    this.orientationGateButton = this.orientationGateEl.querySelector('#orientationGateButton') as HTMLButtonElement;
-    this.orientationGateHint = this.orientationGateEl.querySelector('#orientationGateHint') as HTMLParagraphElement;
-    this.orientationGateButton.addEventListener('click', () => {
-      this.playUiClick('secondary');
-      this.menuView.setStatus('PCブラウザでアクセスしてください');
-    });
 
     if (this.debugEnabled) {
       this.debugEl = document.createElement('div');
@@ -156,9 +145,6 @@ export class App {
     this.menuView.setSettings(this.settings);
     this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     this.hudView.setSteerInverted(this.settings.invertSteer);
-    this.syncInputGuideMode();
-    this.hudView.setTouchEnabled(false);
-    this.hudView.bindTouchControls(this.input);
     this.input.attach();
     this.refreshOrientationGuard();
 
@@ -200,10 +186,6 @@ export class App {
       onStart: () => {
         this.playUiClick('primary');
         void this.handleStartRace();
-      },
-      onAssistLandscape: () => {
-        this.playUiClick('secondary');
-        void this.handleAssistLandscape();
       },
       onTrackChange: (trackId) => {
         this.playUiClick('secondary');
@@ -1150,21 +1132,23 @@ export class App {
   }
 
   private isMobileUnsupported(): boolean {
-    return this.shouldUseMobileTouchUI();
+    if (!this.shouldUseMobileTouchUI()) return false;
+    const shorterSide = Math.min(window.innerWidth, window.innerHeight);
+    const longerSide = Math.max(window.innerWidth, window.innerHeight);
+    return shorterSide <= 540 && longerSide <= 980;
   }
 
   private refreshOrientationGuard(): void {
-    this.syncInputGuideMode();
     const mobileUnsupported = this.isMobileUnsupported();
     const phase = this.raceManager?.getPhase() ?? 'menu';
-    const showOrientationGate = mobileUnsupported;
-
-    this.orientationGateEl.classList.toggle('hidden', !showOrientationGate);
-    this.shell.classList.toggle('orientation-blocked', showOrientationGate);
-    this.hudView.setTouchEnabled(false);
+    if (this.lastMobileUnsupported !== mobileUnsupported) {
+      this.orientationGateEl.classList.toggle('hidden', !mobileUnsupported);
+      this.shell.classList.toggle('orientation-blocked', mobileUnsupported);
+      this.menuView.setDeviceBlocked(mobileUnsupported);
+      this.lastMobileUnsupported = mobileUnsupported;
+    }
 
     if (phase === 'menu') {
-      this.menuView.setLandscapeAssistVisible(false);
       this.menuView.setPortraitStartBlocked(mobileUnsupported);
       if (this.lastMenuPortraitBlocked !== mobileUnsupported) {
         this.menuView.setStatus(mobileUnsupported ? 'スマホではプレイできません。PCブラウザでアクセスしてください。' : this.getMenuReadyStatus());
@@ -1174,9 +1158,6 @@ export class App {
       this.lastMenuPortraitBlocked = null;
     }
 
-    this.orientationGateHint.textContent = showOrientationGate
-      ? 'この端末ではレース開始を無効化しています。'
-      : '';
   }
 
   private enforceMobilePortraitBlock(): void {
@@ -1192,10 +1173,6 @@ export class App {
     }
   }
 
-  private async handleAssistLandscape(): Promise<void> {
-    this.menuView.setStatus('PCブラウザでアクセスしてください');
-  }
-
   private getTrackLabel(trackId: string): string {
     return this.trackCatalog.find((track) => track.id === trackId)?.label ?? trackId;
   }
@@ -1209,14 +1186,6 @@ export class App {
     const noHover = matchMedia('(hover: none)').matches;
     const hasTouch = navigator.maxTouchPoints > 0;
     return coarse || (hasTouch && noHover);
-  }
-
-  private syncInputGuideMode(): void {
-    const touchMode = false;
-    if (this.inputGuideTouchMode === touchMode) return;
-    this.inputGuideTouchMode = touchMode;
-    this.menuView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
-    this.hudView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
   }
 
   private updateInputDebug(state: InputDebugState): void {
