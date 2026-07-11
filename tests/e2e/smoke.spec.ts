@@ -14,16 +14,17 @@ test('can switch map from menu and start race', async ({ page }) => {
   const trackSelect = page.locator('#trackSelect');
   await expect(trackSelect).toBeVisible();
   await expect(trackSelect).toBeEnabled();
-  await expect(trackSelect.locator('option')).toHaveCount(4);
+  await expect(trackSelect.locator('option')).toHaveCount(5);
 
-  await trackSelect.selectOption('studio-gp-long-01');
-  await expect(trackSelect).toHaveValue('studio-gp-long-01');
+  await expect(trackSelect.locator('option[value="sol-abyss-gp-01"]')).toHaveText('SOL ABYSS / ソル・アビス（異常空間）');
+  await trackSelect.selectOption('sol-abyss-gp-01');
+  await expect(trackSelect).toHaveValue('sol-abyss-gp-01');
   const startButton = page.getByRole('button', { name: 'レース開始' });
   await expect(startButton).toBeEnabled();
   await startButton.click();
 
   await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
-  await expect(trackSelect).toHaveValue('studio-gp-long-01');
+  await expect(trackSelect).toHaveValue('sol-abyss-gp-01');
 });
 
 test.describe('mobile', () => {

@@ -126,6 +126,37 @@ export const PLAYABLE_TRACK_SPECS = [
     checkpointRadius: 8.7,
     hardBoundaryMargin: 7.5,
   },
+  {
+    id: 'sol-abyss-gp-01',
+    theme: 'sol-abyss',
+    outputFile: 'track_sol_abyss.meta.json',
+    controlPoints: [
+      [124, 4],
+      [118, 38],
+      [92, 66],
+      [48, 76],
+      [8, 62],
+      [-28, 78],
+      [-72, 62],
+      [-108, 30],
+      [-122, -8],
+      [-98, -46],
+      [-54, -68],
+      [-8, -58],
+      [34, -76],
+      [78, -58],
+      [112, -28],
+    ],
+    samplesPerSegment: 5,
+    widthBase: 12.1,
+    widthCornerBoost: 2.1,
+    widthWave: 0.52,
+    speedBase: 36.5,
+    speedCornerDrop: 9.2,
+    checkpointCount: 10,
+    checkpointRadius: 9.2,
+    hardBoundaryMargin: 8.2,
+  },
 ];
 
 export function createTrackFromSpec(spec) {
@@ -163,6 +194,10 @@ export function createFallbackForestTrack() {
 
 export function createFallbackStudioTrack() {
   return createPlayableTrackById('studio-gp-long-01');
+}
+
+export function createFallbackSolAbyssTrack() {
+  return createPlayableTrackById('sol-abyss-gp-01');
 }
 
 export function createFallbackCoastalTrack() {

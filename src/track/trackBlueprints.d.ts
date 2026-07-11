@@ -24,4 +24,5 @@ export function createFallbackRacewayTrack(): TrackDefinition;
 export function createFallbackDesertTrack(): TrackDefinition;
 export function createFallbackForestTrack(): TrackDefinition;
 export function createFallbackStudioTrack(): TrackDefinition;
+export function createFallbackSolAbyssTrack(): TrackDefinition;
 export function createFallbackCoastalTrack(): TrackDefinition;

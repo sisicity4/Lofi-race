@@ -90,4 +90,21 @@ describe('rebuilt track difficulty spread', () => {
     expect(forestStats.minTargetSpeed).toBeGreaterThanOrEqual(22);
     expect(studioStats.minTargetSpeed).toBeGreaterThanOrEqual(22);
   });
+
+  it('keeps SOL ABYSS fast, flowing, and available through the catalog fallback', async () => {
+    const loader = new TrackLoader();
+    const catalogEntry = loader.getTrackCatalog().find((entry) => entry.id === 'sol-abyss-gp-01');
+    const track = await loader.loadTrack('sol-abyss-gp-01');
+    const stats = trackStats(track);
+
+    expect(catalogEntry?.label).toBe('SOL ABYSS / ソル・アビス（異常空間）');
+    expect(track.theme).toBe('sol-abyss');
+    expect(track.waypoints).toHaveLength(75);
+    expect(track.checkpoints).toHaveLength(10);
+    expect(stats.maxTurnAngle).toBeGreaterThan(22.9);
+    expect(stats.maxTurnAngle).toBeLessThanOrEqual(30);
+    expect(stats.sharpTurns).toBe(0);
+    expect(stats.minTargetSpeed).toBeGreaterThanOrEqual(30);
+    expect(stats.maxWidth).toBeGreaterThanOrEqual(13.5);
+  });
 });

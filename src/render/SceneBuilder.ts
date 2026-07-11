@@ -246,6 +246,8 @@ export class SceneBuilder {
         return new THREE.Color(0xa8d8b5);
       case 'studio':
         return new THREE.Color(0x9aa6be);
+      case 'sol-abyss':
+        return new THREE.Color(0x060015);
       case 'coastal':
       default:
         return new THREE.Color(0x93dcff);
@@ -262,6 +264,8 @@ export class SceneBuilder {
         return new THREE.Color(0x9bb59f);
       case 'studio':
         return new THREE.Color(0xa3adbb);
+      case 'sol-abyss':
+        return new THREE.Color(0x100326);
       case 'coastal':
       default:
         return new THREE.Color(0xb4e5ff);
@@ -278,6 +282,8 @@ export class SceneBuilder {
         return 0xd7def3;
       case 'raceway':
         return 0xd6eeff;
+      case 'sol-abyss':
+        return 0x9a6cff;
       case 'coastal':
       default:
         return 0xd6f4ff;
@@ -294,6 +300,8 @@ export class SceneBuilder {
         return 0x5a5f70;
       case 'raceway':
         return 0x607350;
+      case 'sol-abyss':
+        return 0x16052e;
       case 'coastal':
       default:
         return 0x6e7f4c;
@@ -308,6 +316,8 @@ export class SceneBuilder {
         return 0xffefc8;
       case 'desert':
         return 0xffdfab;
+      case 'sol-abyss':
+        return 0xff62e5;
       case 'raceway':
       case 'coastal':
       default:
@@ -325,6 +335,8 @@ export class SceneBuilder {
         return 0x434b5b;
       case 'raceway':
         return 0x2f353c;
+      case 'sol-abyss':
+        return 0x100d21;
       case 'coastal':
       default:
         return 0x3c4752;
@@ -341,6 +353,8 @@ export class SceneBuilder {
         return 0xe3e5ea;
       case 'raceway':
         return 0xffe7c4;
+      case 'sol-abyss':
+        return 0x62f7ff;
       case 'coastal':
       default:
         return 0xfff6d8;
@@ -423,6 +437,24 @@ export class SceneBuilder {
         group.add(lot);
         break;
       }
+      case 'sol-abyss': {
+        const voidFloor = new THREE.Mesh(
+          new THREE.CircleGeometry(270, 72),
+          new THREE.MeshBasicMaterial({ color: 0x080015 }),
+        );
+        voidFloor.rotation.x = -Math.PI / 2;
+        voidFloor.position.y = -2.7;
+        group.add(voidFloor);
+
+        const abyss = new THREE.Mesh(
+          new THREE.CircleGeometry(178, 64),
+          new THREE.MeshBasicMaterial({ color: 0x020006 }),
+        );
+        abyss.rotation.x = -Math.PI / 2;
+        abyss.position.y = -2.15;
+        group.add(abyss);
+        break;
+      }
       case 'coastal':
       default: {
         const sea = new THREE.Mesh(
@@ -470,6 +502,8 @@ export class SceneBuilder {
         return this.createForestLandmarks(track);
       case 'studio':
         return this.createStudioLandmarks(track);
+      case 'sol-abyss':
+        return this.createSolAbyssLandmarks(track);
       default:
         return new THREE.Group();
     }
@@ -489,6 +523,8 @@ export class SceneBuilder {
       case 'studio':
         this.populateStudioDeco(group, track);
         break;
+      case 'sol-abyss':
+        break;
       case 'coastal':
       default:
         this.populateCoastalDeco(group);
@@ -500,6 +536,8 @@ export class SceneBuilder {
     const geometry = this.buildRibbonGeometry(track, 0);
     const material = new THREE.MeshStandardMaterial({
       color: this.getRoadColor(theme),
+      emissive: theme === 'sol-abyss' ? 0x130c3d : 0x000000,
+      emissiveIntensity: theme === 'sol-abyss' ? 0.7 : 1,
       flatShading: true,
       roughness: 0.95,
       metalness: 0.05,
@@ -1462,6 +1500,143 @@ export class SceneBuilder {
     return root;
   }
 
+  private createSolAbyssLandmarks(track: TrackDefinition): THREE.Group {
+    const root = new THREE.Group();
+    root.name = 'sol-abyss-landmarks';
+
+    const coreMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uCoreColor: { value: new THREE.Color(0xfff4ba) },
+        uEdgeColor: { value: new THREE.Color(0xff31c8) },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          float ripple = sin(position.y * 0.55 + uTime * 2.2) * 0.32;
+          ripple += sin(position.x * 0.7 - position.z * 0.45 - uTime * 1.6) * 0.2;
+          vec3 displaced = position + normal * ripple;
+          vPosition = displaced;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uCoreColor;
+        uniform vec3 uEdgeColor;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          float bands = sin(vPosition.y * 0.7 + vPosition.x * 0.22 + uTime * 2.6) * 0.5 + 0.5;
+          float flare = pow(1.0 - abs(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0))), 2.0);
+          vec3 color = mix(uEdgeColor, uCoreColor, 0.42 + bands * 0.5);
+          color += uEdgeColor * flare * 0.9;
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
+    });
+    coreMaterial.userData.solAbyssAnimated = true;
+
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(17, 5), coreMaterial);
+    core.name = 'sol-abyss-core';
+    core.position.set(0, 31, 0);
+    root.add(core);
+
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff4fd8,
+      transparent: true,
+      opacity: 0.18,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide,
+    });
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(20.5, 32, 20), haloMaterial);
+    halo.position.copy(core.position);
+    root.add(halo);
+
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0x7ef9ff,
+      transparent: true,
+      opacity: 0.62,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    for (let i = 0; i < 4; i += 1) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(27 + i * 7, 0.24 + i * 0.05, 8, 96), ringMaterial);
+      ring.position.copy(core.position);
+      ring.rotation.set(0.35 + i * 0.31, i * 0.62, 0.12 + i * 0.22);
+      ring.userData.solAbyssSpin = 0.08 + i * 0.025;
+      root.add(ring);
+    }
+
+    const beaconMaterial = new THREE.MeshStandardMaterial({
+      color: 0x150628,
+      emissive: 0x8f16c8,
+      emissiveIntensity: 1.8,
+      metalness: 0.5,
+      roughness: 0.35,
+    });
+    const lightMaterial = new THREE.MeshBasicMaterial({ color: 0x62f7ff, blending: THREE.AdditiveBlending });
+    for (let i = 0; i < track.waypoints.length; i += 10) {
+      const anchor = this.getTracksideAnchor(track, i, i % 20 === 0 ? 1 : -1, 18);
+      const monolith = new THREE.Group();
+      monolith.position.set(anchor.x, 0.1, anchor.z);
+      monolith.rotation.y = anchor.yaw;
+      const body = new THREE.Mesh(new THREE.OctahedronGeometry(2.8, 0), beaconMaterial);
+      body.scale.y = 3.8;
+      body.position.y = 6.5;
+      monolith.add(body);
+      const slit = new THREE.Mesh(new THREE.BoxGeometry(0.32, 7.5, 0.18), lightMaterial);
+      slit.position.set(0, 6.5, 2.02);
+      monolith.add(slit);
+      root.add(monolith);
+    }
+
+    const particlePositions = new Float32Array(520 * 3);
+    for (let i = 0; i < 520; i += 1) {
+      const angle = i * 2.399963;
+      const radius = 34 + ((i * 47) % 175);
+      particlePositions[i * 3] = Math.cos(angle) * radius;
+      particlePositions[i * 3 + 1] = 4 + ((i * 29) % 88);
+      particlePositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particles = new THREE.Points(
+      particleGeometry,
+      new THREE.PointsMaterial({
+        color: 0xb8f8ff,
+        size: 0.72,
+        transparent: true,
+        opacity: 0.82,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    particles.name = 'sol-abyss-high-detail';
+    particles.userData.solAbyssSpin = -0.018;
+    root.add(particles);
+
+    const shardMaterial = new THREE.MeshStandardMaterial({ color: 0x21083f, emissive: 0x31064f, flatShading: true, roughness: 0.58 });
+    const shards = new THREE.Group();
+    shards.name = 'sol-abyss-high-detail';
+    for (let i = 0; i < 28; i += 1) {
+      const angle = (i / 28) * Math.PI * 2 + (i % 3) * 0.24;
+      const radius = 94 + (i % 7) * 15;
+      const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(2.4 + (i % 4) * 0.75, 0), shardMaterial);
+      shard.position.set(Math.cos(angle) * radius, 8 + (i * 13) % 42, Math.sin(angle) * radius);
+      shard.rotation.set(i * 0.41, i * 0.27, i * 0.19);
+      shards.add(shard);
+    }
+    shards.userData.solAbyssSpin = 0.012;
+    root.add(shards);
+
+    return root;
+  }
+
   private createRacewayMegaObjects(track: TrackDefinition): THREE.Group {
     const root = new THREE.Group();
     root.name = 'raceway-mega';
@@ -2134,6 +2309,8 @@ export class SceneBuilder {
         break;
       case 'studio':
         root.add(this.createStudioBacklotRemix(track));
+        break;
+      case 'sol-abyss':
         break;
       case 'coastal':
       default:
@@ -2954,6 +3131,8 @@ export class SceneBuilder {
         return [0xbbe8be, 0x6adf97, 0xb5f2ff][zone];
       case 'studio':
         return [0xc8d2ff, 0xff9ed2, 0x9ff4ff][zone];
+      case 'sol-abyss':
+        return [0x5df6ff, 0xff4fd8, 0xb684ff][zone];
       case 'coastal':
       default:
         return [0x9defff, 0xffb979, 0x9bffcc][zone];
@@ -2994,6 +3173,13 @@ export class SceneBuilder {
           roof: [0x33415c, 0x3d405b, 0x2b2d42],
           small: [0x8d99ae, 0xf4a261, 0x5c677d],
           big: [0x495057, 0x6c757d, 0xadb5bd],
+        };
+      case 'sol-abyss':
+        return {
+          house: [0x27104c, 0x3b176b, 0x16102f],
+          roof: [0x07020f, 0x110526, 0x1b0736],
+          small: [0x5df6ff, 0xff4fd8, 0xb684ff],
+          big: [0x21093d, 0x32105a, 0x120622],
         };
       case 'coastal':
       default:

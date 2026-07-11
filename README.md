@@ -8,7 +8,7 @@ Three.js + TypeScript + Vite の構成で、デスクトップとモバイル（
 - GitHub Pages: https://sisicity4.github.io/Lofi-race/
 
 ## 実装済みの主な内容
-- 4コース（Raceway / Desert / Forest / Studio）
+- 5コース（Raceway / Desert / Forest / Studio / SOL ABYSS）
 - 1レースあたり3ラップ固定
 - プレイヤー1台 + CPU3台
 - 初回表示コースはランダム
@@ -18,6 +18,15 @@ Three.js + TypeScript + Vite の構成で、デスクトップとモバイル（
 - 場外判定（爆発演出）と安全位置リスポーン
 - デスクトップ操作 + モバイル操作（左ジョイスティック + 右アクション）
 - 待機中ループBGM（`Pixel_Pavement.mp3`）と各種SE
+
+## SOL ABYSS
+
+`SOL ABYSS / ソル・アビス（異常空間）` は、Codex Solを使って設計・実装したステージです。
+
+- 高速で駆け抜けられる、急カーブを抑えたフロー型コース
+- シェーダーで脈動する恒星核と重力リング
+- ネオン道路、星粒子、浮遊破片、異常空間を表現した専用景観
+- Low画質では装飾を削減しつつ、道路やゲートの視認性を維持
 
 ## 技術スタック
 - `TypeScript`

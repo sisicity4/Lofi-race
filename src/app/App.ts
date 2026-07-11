@@ -74,6 +74,8 @@ export class App {
   private activeFx: TransientFx[] = [];
   private shadowFlowGroups: THREE.Object3D[] = [];
   private shadowFlowTimeSec = 0;
+  private solAbyssObjects: THREE.Object3D[] = [];
+  private solAbyssTimeSec = 0;
   private cameraTrauma01 = 0;
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
@@ -457,6 +459,8 @@ export class App {
     this.settings.trackId = this.selectedTrackId;
 
     this.sceneBuilder.buildScene(this.renderer.scene, track);
+    this.collectSolAbyssObjects();
+    this.applySolAbyssQuality();
     this.collectShadowFlowGroups();
     this.createOrAttachNextCheckpointBeacon();
 
@@ -539,6 +543,7 @@ export class App {
     });
     this.updateNextCheckpointBeacon(frameDtSec);
     this.updateShadowFlows(frameDtSec);
+    this.updateSolAbyssFx(frameDtSec);
     this.updateTransientFx(frameDtSec);
     this.renderer.render();
 
@@ -1050,6 +1055,7 @@ export class App {
   private applyGraphicsQuality(quality: GraphicsQuality): void {
     this.settings.graphicsQuality = quality;
     this.renderer?.applyQuality(quality);
+    this.applySolAbyssQuality();
     this.persistSettings();
     this.eventBus.emit('settings:changed', {
       graphicsQuality: this.settings.graphicsQuality,
@@ -1057,6 +1063,48 @@ export class App {
       masterVolume: this.settings.masterVolume,
       invertSteer: this.settings.invertSteer,
     });
+  }
+
+  private collectSolAbyssObjects(): void {
+    this.solAbyssObjects = [];
+    this.solAbyssTimeSec = 0;
+    this.renderer?.scene.traverse((object) => {
+      const material = object instanceof THREE.Mesh || object instanceof THREE.Points ? object.material : null;
+      const materials = Array.isArray(material) ? material : material ? [material] : [];
+      if (
+        object.userData.solAbyssSpin !== undefined ||
+        object.name === 'sol-abyss-high-detail' ||
+        materials.some((entry) => entry.userData.solAbyssAnimated === true)
+      ) {
+        this.solAbyssObjects.push(object);
+      }
+    });
+  }
+
+  private applySolAbyssQuality(): void {
+    const showHighDetail = this.settings.graphicsQuality !== 'low';
+    for (const object of this.solAbyssObjects) {
+      if (object.name === 'sol-abyss-high-detail') {
+        object.visible = showHighDetail;
+      }
+    }
+  }
+
+  private updateSolAbyssFx(dtSec: number): void {
+    if (this.solAbyssObjects.length === 0) return;
+    this.solAbyssTimeSec += dtSec;
+    for (const object of this.solAbyssObjects) {
+      const spin = object.userData.solAbyssSpin as number | undefined;
+      if (spin !== undefined) {
+        object.rotation.y += spin * dtSec;
+      }
+      if (!(object instanceof THREE.Mesh || object instanceof THREE.Points)) continue;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (material.userData.solAbyssAnimated !== true || !(material instanceof THREE.ShaderMaterial)) continue;
+        material.uniforms.uTime.value = this.solAbyssTimeSec;
+      }
+    }
   }
 
   private setInvertSteer(inverted: boolean): void {

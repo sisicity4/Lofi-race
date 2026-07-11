@@ -5,12 +5,14 @@ export {
   createFallbackForestTrack,
   createFallbackRacewayTrack,
   createFallbackStudioTrack,
+  createFallbackSolAbyssTrack,
 } from './trackBlueprints.js';
 import {
   createFallbackDesertTrack,
   createFallbackForestTrack,
   createFallbackRacewayTrack,
   createFallbackStudioTrack,
+  createFallbackSolAbyssTrack,
 } from './trackBlueprints.js';
 
 export interface TrackCatalogEntry {
@@ -48,9 +50,15 @@ const TRACK_SOURCES: readonly TrackSource[] = [
     metaPath: 'assets/data/track_studio_long.meta.json',
     fallback: createFallbackStudioTrack,
   },
+  {
+    id: 'sol-abyss-gp-01',
+    label: 'SOL ABYSS / ソル・アビス（異常空間）',
+    metaPath: 'assets/data/track_sol_abyss.meta.json',
+    fallback: createFallbackSolAbyssTrack,
+  },
 ] as const;
 
-const SUPPORTED_THEMES: readonly TrackTheme[] = ['coastal', 'raceway', 'desert', 'forest', 'studio'];
+const SUPPORTED_THEMES: readonly TrackTheme[] = ['coastal', 'raceway', 'desert', 'forest', 'studio', 'sol-abyss'];
 const REVERSED_TRACK_IDS = new Set<string>(['desert-gp-long-01', 'studio-gp-long-01']);
 const START_CHECKPOINT_ALIGN_MAX_DIST = 2.6;
 
@@ -133,6 +141,12 @@ function applyThemeFlavor(track: TrackDefinition): TrackDefinition {
         targetSpeed = wp.targetSpeed * (wave > 0.35 ? 0.88 : 1.05);
         break;
       }
+      case 'sol-abyss': {
+        const pulse = Math.sin((index / Math.max(1, track.waypoints.length)) * Math.PI * 8);
+        width = wp.width * (1.02 + Math.max(0, pulse) * 0.035);
+        targetSpeed = wp.targetSpeed * (1.07 + Math.max(0, -pulse) * 0.02);
+        break;
+      }
       case 'coastal':
       default:
         break;
@@ -160,6 +174,8 @@ function applyThemeFlavor(track: TrackDefinition): TrackDefinition {
           ? Math.max(5.2, track.hardBoundaryMargin - 0.8)
           : track.theme === 'studio'
             ? track.hardBoundaryMargin + 0.2
+            : track.theme === 'sol-abyss'
+              ? track.hardBoundaryMargin + 0.8
             : track.hardBoundaryMargin;
 
   return {

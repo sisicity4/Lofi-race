@@ -16,3 +16,12 @@ Original prompt: コースを全てリビルドして / レビューとプレビ
 
 ## TODO
 - Full-lap human playtest for final feel tuning.
+
+## SOL ABYSS stage
+- Added a fifth high-speed flow track, `sol-abyss-gp-01`, with generated metadata and loader fallback.
+- Added the `sol-abyss` visual theme: shader-driven stellar core, gravity rings, neon road treatment, particles, monoliths, and floating shards.
+- Low graphics quality hides the high-density particles and distant shard field while preserving gameplay guides.
+- Measured blueprint metrics: 75 waypoints, 10 checkpoints, 23.43 degree maximum turn, 30.8 minimum target speed, 13.7 maximum width.
+- Build passed after the first implementation chunk.
+- Unit tests passed (59 tests). The first Chromium E2E run found only a stale four-track count; updated the smoke flow to select SOL ABYSS explicitly.
+- SOL ABYSS targeted E2E passed. Standard and low quality gameplay screenshots were visually inspected; low quality correctly removes particles/shards while keeping the road, rails, gates, and monoliths readable.
