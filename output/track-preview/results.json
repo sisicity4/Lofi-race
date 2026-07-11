@@ -1,0 +1,30 @@
+[
+  {
+    "name": "raceway",
+    "value": "raceway-gp-long-01",
+    "visiblePause": true,
+    "body": "順位\n1/4\nLAP\n1 / 3\n現在\n0:00.00\nベスト\n--\nII\nFIELD\n1\nYOU\nL1\n2\nCPU 1\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n0\nKM/H\nOD\nCHARGE\n2\n高速レイアウト / 直線の伸びとブレーキング勝負",
+    "errors": []
+  },
+  {
+    "name": "desert",
+    "value": "desert-gp-long-01",
+    "visiblePause": true,
+    "body": "順位\n1/4\nLAP\n1 / 3\n現在\n0:00.00\nベスト\n--\nII\nFIELD\n1\nYOU\nL1\n2\nCPU 1\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n0\nKM/H\nOD\nCHARGE\n2\n砂漠コース / 早めに向きを作って立ち上がれ",
+    "errors": []
+  },
+  {
+    "name": "forest",
+    "value": "forest-gp-long-01",
+    "visiblePause": true,
+    "body": "順位\n1/4\nLAP\n1 / 3\n現在\n0:00.00\nベスト\n--\nII\nFIELD\n1\nYOU\nL1\n2\nCPU 1\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n0\nKM/H\nOD\nCHARGE\n2\nテクニカル森林 / 小さく丁寧な切り返しが鍵",
+    "errors": []
+  },
+  {
+    "name": "studio",
+    "value": "studio-gp-long-01",
+    "visiblePause": true,
+    "body": "順位\n1/4\nLAP\n1 / 3\n現在\n0:00.00\nベスト\n--\nII\nFIELD\n1\nYOU\nL1\n2\nCPU 1\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n0\nKM/H\nOD\nCHARGE\n2\nトリッキースタジオ / リズム重視で攻めよう",
+    "errors": []
+  }
+]

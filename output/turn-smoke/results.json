@@ -1,0 +1,50 @@
+[
+  {
+    "name": "raceway",
+    "value": "raceway-gp-long-01",
+    "steerKey": "KeyD",
+    "pauseVisible": true,
+    "wallContact": false,
+    "offroadWarning": false,
+    "bootError": false,
+    "speed": 39,
+    "body": "順位\n2/4\nLAP\n1 / 3\n現在\n0:01.73\nベスト\n--\nII\nFIELD\n1\nCPU 1\nL1\n2\nYOU\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n39\nKM/H\nOD\nCHARGE\n2位に後退… 取り返そう",
+    "errors": []
+  },
+  {
+    "name": "desert",
+    "value": "desert-gp-long-01",
+    "steerKey": "KeyA",
+    "pauseVisible": true,
+    "wallContact": false,
+    "offroadWarning": false,
+    "bootError": false,
+    "speed": 36,
+    "body": "順位\n2/4\nLAP\n1 / 3\n現在\n0:01.93\nベスト\n--\nII\nFIELD\n1\nCPU 1\nL1\n2\nYOU\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n36\nKM/H\nOD\nCHARGE\n2位に後退… 取り返そう",
+    "errors": []
+  },
+  {
+    "name": "forest",
+    "value": "forest-gp-long-01",
+    "steerKey": "KeyA",
+    "pauseVisible": true,
+    "wallContact": false,
+    "offroadWarning": false,
+    "bootError": false,
+    "speed": 31,
+    "body": "順位\n2/4\nLAP\n1 / 3\n現在\n0:01.33\nベスト\n--\nII\nFIELD\n1\nCPU 1\nL1\n2\nYOU\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n31\nKM/H\nOD\nCHARGE\nオーバーテイク! 1位",
+    "errors": []
+  },
+  {
+    "name": "studio",
+    "value": "studio-gp-long-01",
+    "steerKey": "KeyA",
+    "pauseVisible": true,
+    "wallContact": false,
+    "offroadWarning": false,
+    "bootError": false,
+    "speed": 38,
+    "body": "順位\n2/4\nLAP\n1 / 3\n現在\n0:01.46\nベスト\n--\nII\nFIELD\n1\nCPU 1\nL1\n2\nYOU\nL1\n3\nCPU 2\nL1\n4\nCPU 3\nL1\nCONTROLS\nW / ↑\nACCEL\nS / ↓\nBRAKE\nA D / ← →\nSTEER\nSPACE\nDRIFT\nSHIFT\nOVERDRIVE\nEsc\nPAUSE\nSPEED\n38\nKM/H\nOD\nCHARGE\n2位に後退… 取り返そう",
+    "errors": []
+  }
+]
