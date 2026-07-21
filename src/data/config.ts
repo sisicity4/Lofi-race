@@ -71,6 +71,12 @@ export function getVehicleParamsForTheme(theme: TrackTheme): VehicleParams {
       params.driftGrip *= 0.92;
       params.turnRateBase *= 1.04;
       break;
+    case 'sol-abyss':
+      params.maxSpeed *= 1.12;
+      params.accelForward *= 1.1;
+      params.drag *= 0.94;
+      params.lateralGrip *= 1.04;
+      break;
     case 'coastal':
     default:
       break;

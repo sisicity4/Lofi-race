@@ -210,7 +210,7 @@ export class RaceManager {
     }
 
     if (this.phase === 'countdown') {
-      this.overdriveBoostQueued = false;
+      this.overdriveBoostQueued = playerInput.boostHeld;
       const countdownResult = this.countdown.update(dtSec);
       if (countdownResult.changedLabel) {
         this.options.eventBus.emit('race:countdownTick', { label: countdownResult.changedLabel });

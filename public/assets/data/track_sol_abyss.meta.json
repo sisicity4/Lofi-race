@@ -1,0 +1,536 @@
+{
+  "id": "sol-abyss-gp-01",
+  "theme": "sol-abyss",
+  "startGrid": [
+    {
+      "x": 126.4,
+      "y": 0,
+      "z": 3.9,
+      "yaw": 0.04408905739807142
+    },
+    {
+      "x": 121.4,
+      "y": 0,
+      "z": 0.3,
+      "yaw": 0.04408905739807142
+    },
+    {
+      "x": 126.1,
+      "y": 0,
+      "z": -3.7,
+      "yaw": 0.04408905739807142
+    },
+    {
+      "x": 121.1,
+      "y": 0,
+      "z": -7.3,
+      "yaw": 0.04408905739807142
+    }
+  ],
+  "waypoints": [
+    {
+      "x": 124,
+      "z": 4,
+      "targetSpeed": 34.8,
+      "width": 12.2
+    },
+    {
+      "x": 124.3,
+      "z": 10.8,
+      "targetSpeed": 34.8,
+      "width": 12.4
+    },
+    {
+      "x": 123.9,
+      "z": 17.7,
+      "targetSpeed": 34.8,
+      "width": 12.5
+    },
+    {
+      "x": 122.7,
+      "z": 24.7,
+      "targetSpeed": 34.9,
+      "width": 12.7
+    },
+    {
+      "x": 120.8,
+      "z": 31.6,
+      "targetSpeed": 35.1,
+      "width": 12.8
+    },
+    {
+      "x": 118,
+      "z": 38,
+      "targetSpeed": 35.5,
+      "width": 12.9
+    },
+    {
+      "x": 114.4,
+      "z": 44.3,
+      "targetSpeed": 35.9,
+      "width": 13
+    },
+    {
+      "x": 109.9,
+      "z": 50.5,
+      "targetSpeed": 36,
+      "width": 13
+    },
+    {
+      "x": 104.7,
+      "z": 56.4,
+      "targetSpeed": 35.8,
+      "width": 13.1
+    },
+    {
+      "x": 98.7,
+      "z": 61.6,
+      "targetSpeed": 35.5,
+      "width": 13.2
+    },
+    {
+      "x": 92,
+      "z": 66,
+      "targetSpeed": 35.4,
+      "width": 13.1
+    },
+    {
+      "x": 84.3,
+      "z": 69.5,
+      "targetSpeed": 35.6,
+      "width": 12.9
+    },
+    {
+      "x": 75.5,
+      "z": 72.4,
+      "targetSpeed": 35.6,
+      "width": 12.8
+    },
+    {
+      "x": 66.2,
+      "z": 74.6,
+      "targetSpeed": 35.3,
+      "width": 12.7
+    },
+    {
+      "x": 56.8,
+      "z": 75.8,
+      "targetSpeed": 34.3,
+      "width": 12.7
+    },
+    {
+      "x": 48,
+      "z": 76,
+      "targetSpeed": 33.2,
+      "width": 12.8
+    },
+    {
+      "x": 39.7,
+      "z": 74.3,
+      "targetSpeed": 33.5,
+      "width": 12.6
+    },
+    {
+      "x": 31.5,
+      "z": 70.7,
+      "targetSpeed": 35.4,
+      "width": 12
+    },
+    {
+      "x": 23.5,
+      "z": 66.6,
+      "targetSpeed": 35.2,
+      "width": 12
+    },
+    {
+      "x": 15.7,
+      "z": 63.3,
+      "targetSpeed": 32.5,
+      "width": 12.5
+    },
+    {
+      "x": 8,
+      "z": 62,
+      "targetSpeed": 30.8,
+      "width": 12.9
+    },
+    {
+      "x": 0.7,
+      "z": 63.8,
+      "targetSpeed": 32,
+      "width": 12.6
+    },
+    {
+      "x": -6.3,
+      "z": 67.8,
+      "targetSpeed": 35.1,
+      "width": 11.9
+    },
+    {
+      "x": -13.2,
+      "z": 72.5,
+      "targetSpeed": 34.8,
+      "width": 12.1
+    },
+    {
+      "x": -20.4,
+      "z": 76.4,
+      "targetSpeed": 32.2,
+      "width": 12.7
+    },
+    {
+      "x": -28,
+      "z": 78,
+      "targetSpeed": 31.8,
+      "width": 12.9
+    },
+    {
+      "x": -36.4,
+      "z": 77.1,
+      "targetSpeed": 33.4,
+      "width": 12.7
+    },
+    {
+      "x": -45.4,
+      "z": 74.7,
+      "targetSpeed": 34.7,
+      "width": 12.6
+    },
+    {
+      "x": -54.6,
+      "z": 71.1,
+      "targetSpeed": 35.5,
+      "width": 12.6
+    },
+    {
+      "x": -63.6,
+      "z": 66.7,
+      "targetSpeed": 36.1,
+      "width": 12.6
+    },
+    {
+      "x": -72,
+      "z": 62,
+      "targetSpeed": 36.3,
+      "width": 12.7
+    },
+    {
+      "x": -80.1,
+      "z": 56.7,
+      "targetSpeed": 36.5,
+      "width": 12.8
+    },
+    {
+      "x": -88,
+      "z": 50.6,
+      "targetSpeed": 36.6,
+      "width": 12.9
+    },
+    {
+      "x": -95.6,
+      "z": 44,
+      "targetSpeed": 36.6,
+      "width": 12.9
+    },
+    {
+      "x": -102.3,
+      "z": 37,
+      "targetSpeed": 36.4,
+      "width": 13
+    },
+    {
+      "x": -108,
+      "z": 30,
+      "targetSpeed": 36.2,
+      "width": 12.9
+    },
+    {
+      "x": -112.8,
+      "z": 22.8,
+      "targetSpeed": 36,
+      "width": 12.8
+    },
+    {
+      "x": -117,
+      "z": 15.2,
+      "targetSpeed": 35.3,
+      "width": 12.9
+    },
+    {
+      "x": -120.2,
+      "z": 7.5,
+      "targetSpeed": 34.1,
+      "width": 12.9
+    },
+    {
+      "x": -122,
+      "z": -0.3,
+      "targetSpeed": 32.9,
+      "width": 13
+    },
+    {
+      "x": -122,
+      "z": -8,
+      "targetSpeed": 32.5,
+      "width": 12.9
+    },
+    {
+      "x": -120,
+      "z": -15.9,
+      "targetSpeed": 33.2,
+      "width": 12.6
+    },
+    {
+      "x": -116.1,
+      "z": -24,
+      "targetSpeed": 34.1,
+      "width": 12.3
+    },
+    {
+      "x": -110.9,
+      "z": -32,
+      "targetSpeed": 34.6,
+      "width": 12.1
+    },
+    {
+      "x": -104.7,
+      "z": -39.4,
+      "targetSpeed": 34.7,
+      "width": 12
+    },
+    {
+      "x": -98,
+      "z": -46,
+      "targetSpeed": 34.7,
+      "width": 12
+    },
+    {
+      "x": -90.5,
+      "z": -51.9,
+      "targetSpeed": 34.8,
+      "width": 12
+    },
+    {
+      "x": -81.9,
+      "z": -57.5,
+      "targetSpeed": 34.8,
+      "width": 12
+    },
+    {
+      "x": -72.7,
+      "z": -62.3,
+      "targetSpeed": 34.6,
+      "width": 12.1
+    },
+    {
+      "x": -63.2,
+      "z": -65.9,
+      "targetSpeed": 33.7,
+      "width": 12.4
+    },
+    {
+      "x": -54,
+      "z": -68,
+      "targetSpeed": 32.6,
+      "width": 12.8
+    },
+    {
+      "x": -44.9,
+      "z": -67.6,
+      "targetSpeed": 33,
+      "width": 12.8
+    },
+    {
+      "x": -35.6,
+      "z": -65,
+      "targetSpeed": 35.2,
+      "width": 12.4
+    },
+    {
+      "x": -26.2,
+      "z": -61.5,
+      "targetSpeed": 35.8,
+      "width": 12.5
+    },
+    {
+      "x": -17,
+      "z": -58.7,
+      "targetSpeed": 33.7,
+      "width": 13.2
+    },
+    {
+      "x": -8,
+      "z": -58,
+      "targetSpeed": 32.6,
+      "width": 13.6
+    },
+    {
+      "x": 0.6,
+      "z": -60.4,
+      "targetSpeed": 34,
+      "width": 13.4
+    },
+    {
+      "x": 9,
+      "z": -64.9,
+      "targetSpeed": 36.8,
+      "width": 12.8
+    },
+    {
+      "x": 17.2,
+      "z": -70,
+      "targetSpeed": 36.3,
+      "width": 13
+    },
+    {
+      "x": 25.5,
+      "z": -74.3,
+      "targetSpeed": 33.8,
+      "width": 13.5
+    },
+    {
+      "x": 34,
+      "z": -76,
+      "targetSpeed": 33,
+      "width": 13.7
+    },
+    {
+      "x": 42.8,
+      "z": -74.9,
+      "targetSpeed": 34.1,
+      "width": 13.3
+    },
+    {
+      "x": 51.9,
+      "z": -72,
+      "targetSpeed": 35.2,
+      "width": 12.9
+    },
+    {
+      "x": 61,
+      "z": -67.8,
+      "targetSpeed": 35.7,
+      "width": 12.6
+    },
+    {
+      "x": 69.8,
+      "z": -62.9,
+      "targetSpeed": 35.8,
+      "width": 12.3
+    },
+    {
+      "x": 78,
+      "z": -58,
+      "targetSpeed": 35.7,
+      "width": 12.2
+    },
+    {
+      "x": 85.8,
+      "z": -52.8,
+      "targetSpeed": 35.4,
+      "width": 12.1
+    },
+    {
+      "x": 93.4,
+      "z": -47,
+      "targetSpeed": 35.4,
+      "width": 12
+    },
+    {
+      "x": 100.5,
+      "z": -40.7,
+      "targetSpeed": 35.3,
+      "width": 12
+    },
+    {
+      "x": 106.8,
+      "z": -34.3,
+      "targetSpeed": 35,
+      "width": 12
+    },
+    {
+      "x": 112,
+      "z": -28,
+      "targetSpeed": 34.7,
+      "width": 12
+    },
+    {
+      "x": 116.1,
+      "z": -21.8,
+      "targetSpeed": 34.5,
+      "width": 12
+    },
+    {
+      "x": 119.2,
+      "z": -15.4,
+      "targetSpeed": 34.5,
+      "width": 12.1
+    },
+    {
+      "x": 121.6,
+      "z": -9,
+      "targetSpeed": 34.6,
+      "width": 12.1
+    },
+    {
+      "x": 123.1,
+      "z": -2.6,
+      "targetSpeed": 34.8,
+      "width": 12.2
+    }
+  ],
+  "checkpoints": [
+    {
+      "x": 124,
+      "z": 4,
+      "radius": 9.2
+    },
+    {
+      "x": 109.9,
+      "z": 50.5,
+      "radius": 9.2
+    },
+    {
+      "x": 56.8,
+      "z": 75.8,
+      "radius": 9.2
+    },
+    {
+      "x": 0.7,
+      "z": 63.8,
+      "radius": 9.2
+    },
+    {
+      "x": -54.6,
+      "z": 71.1,
+      "radius": 9.2
+    },
+    {
+      "x": -108,
+      "z": 30,
+      "radius": 9.2
+    },
+    {
+      "x": -116.1,
+      "z": -24,
+      "radius": 9.2
+    },
+    {
+      "x": -63.2,
+      "z": -65.9,
+      "radius": 9.2
+    },
+    {
+      "x": 0.6,
+      "z": -60.4,
+      "radius": 9.2
+    },
+    {
+      "x": 61,
+      "z": -67.8,
+      "radius": 9.2
+    }
+  ],
+  "hardBoundaryMargin": 8.2,
+  "surfaceZones": []
+}

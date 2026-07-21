@@ -35,13 +35,16 @@ interface TransientFx {
   update: (dtSec: number, ageMs: number, lifeMs: number) => void;
 }
 
-interface CarDriftFxRefs {
+interface CarFxRefs {
   driftFxLeft?: THREE.Mesh;
   driftFxRight?: THREE.Mesh;
   driftFxMaterial?: THREE.MeshBasicMaterial;
+  speedTrailLeft?: THREE.Mesh;
+  speedTrailRight?: THREE.Mesh;
+  speedTrailMaterial?: THREE.MeshBasicMaterial;
+  rearGlow?: THREE.Mesh;
+  rearGlowMaterial?: THREE.MeshBasicMaterial;
 }
-
-type LandscapeAssistResult = 'not-mobile' | 'unsupported' | 'attempted' | 'failed';
 
 export class App {
   private readonly shell: HTMLDivElement;
@@ -51,8 +54,6 @@ export class App {
   private readonly hudView: HudView;
   private readonly resultView: ResultView;
   private readonly orientationGateEl: HTMLDivElement;
-  private readonly orientationGateButton: HTMLButtonElement;
-  private readonly orientationGateHint: HTMLParagraphElement;
   private readonly input = new InputManager();
   private readonly settingsStore = new SettingsStore();
   private readonly eventBus = new EventBus<GameEvents>();
@@ -73,13 +74,16 @@ export class App {
   private activeFx: TransientFx[] = [];
   private shadowFlowGroups: THREE.Object3D[] = [];
   private shadowFlowTimeSec = 0;
+  private solAbyssObjects: THREE.Object3D[] = [];
+  private solAbyssTimeSec = 0;
+  private cameraTrauma01 = 0;
   private lastSnapshot: RaceSnapshot | null = null;
   private debugEl: HTMLDivElement | null = null;
   private rafResizePending = false;
   private lastFeedbackKey = '';
   private lastInputWarningsKey = '';
   private lastInputDebug: InputDebugState | null = null;
-  private inputGuideTouchMode: boolean | null = null;
+  private lastMobileUnsupported: boolean | null = null;
   private lastMenuPortraitBlocked: boolean | null = null;
   private selectedTrackId: string;
   private menuTrackSelectionId: string;
@@ -112,22 +116,13 @@ export class App {
     this.orientationGateEl.className = 'orientation-gate hidden';
     this.orientationGateEl.innerHTML = `
       <div class="panel orientation-gate-card">
-        <p class="eyebrow">LANDSCAPE ONLY</p>
-        <h2 class="orientation-gate-title">横画面でプレイしてください</h2>
-        <p class="orientation-gate-body">縦画面では操作を無効化しています。端末を横向きにしてください。</p>
-        <div class="btn-row">
-          <button id="orientationGateButton" class="btn primary">横画面を試す</button>
-        </div>
-        <p id="orientationGateHint" class="small orientation-gate-hint">対応端末では横画面ロックを試行します。</p>
+        <p class="eyebrow">PC BROWSER ONLY</p>
+        <h2 class="orientation-gate-title">PCでプレイしてください</h2>
+        <p class="orientation-gate-body">スマホ版の開発は一旦停止中です。キーボードで遊べるPCブラウザからアクセスしてください。</p>
+        <p id="orientationGateHint" class="small orientation-gate-hint">この端末ではレース開始を無効化しています。</p>
       </div>
     `;
     this.uiLayer.append(this.orientationGateEl);
-    this.orientationGateButton = this.orientationGateEl.querySelector('#orientationGateButton') as HTMLButtonElement;
-    this.orientationGateHint = this.orientationGateEl.querySelector('#orientationGateHint') as HTMLParagraphElement;
-    this.orientationGateButton.addEventListener('click', () => {
-      this.playUiClick('secondary');
-      void this.tryForceLandscape(true);
-    });
 
     if (this.debugEnabled) {
       this.debugEl = document.createElement('div');
@@ -152,12 +147,8 @@ export class App {
     this.menuView.setSettings(this.settings);
     this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     this.hudView.setSteerInverted(this.settings.invertSteer);
-    this.syncInputGuideMode();
-    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
-    this.hudView.bindTouchControls(this.input);
     this.input.attach();
     this.refreshOrientationGuard();
-    void this.tryForceLandscape(false);
 
     if (!Renderer.isWebGLAvailable(this.canvas)) {
       this.menuView.setError('WebGL が利用できません。');
@@ -197,10 +188,6 @@ export class App {
       onStart: () => {
         this.playUiClick('primary');
         void this.handleStartRace();
-      },
-      onAssistLandscape: () => {
-        this.playUiClick('secondary');
-        void this.handleAssistLandscape();
       },
       onTrackChange: (trackId) => {
         this.playUiClick('secondary');
@@ -269,17 +256,24 @@ export class App {
     this.eventBus.on('race:overdriveStart', () => {
       this.audio.playOverdriveStart();
       this.hudView.flash('go');
+      this.addCameraTrauma(0.38);
+      const player = this.raceManager?.getPlayerVehicle();
+      if (player) {
+        this.spawnOverdriveBurstFx(player.position.x, player.position.y, player.position.z, player.yaw);
+      }
     });
 
     this.eventBus.on('race:overdriveFail', () => {
       this.audio.playOverdriveFail();
       this.hudView.flash('warn');
+      this.addCameraTrauma(0.28);
     });
 
     this.eventBus.on('car:collision', ({ a, b, impulse }) => {
       this.audio.playCollision(impulse);
       if ((a === 'player' || b === 'player') && impulse > 0.7) {
         this.hudView.flash('hit');
+        this.addCameraTrauma(Math.min(0.32, impulse * 0.13));
       }
     });
 
@@ -287,6 +281,7 @@ export class App {
       if (vehicleId !== 'player') return;
       this.audio.playOutOfBoundsExplosion();
       this.hudView.flash('warn');
+      this.addCameraTrauma(0.46);
       this.spawnOutOfBoundsFx(x, y, z, reason);
     });
 
@@ -294,6 +289,7 @@ export class App {
       if (vehicleId !== 'player') return;
       this.audio.playRespawnCue();
       this.hudView.flash('go');
+      this.addCameraTrauma(0.18);
       this.spawnRespawnFx(x, y, z);
     });
 
@@ -301,6 +297,11 @@ export class App {
       if (vehicleId === 'player') {
         this.audio.playLapComplete();
         this.hudView.flash('lap');
+        this.addCameraTrauma(0.2);
+        const player = this.raceManager?.getPlayerVehicle();
+        if (player) {
+          this.spawnLapBurstFx(player.position.x, player.position.y, player.position.z);
+        }
       }
     });
 
@@ -329,16 +330,19 @@ export class App {
 
     window.addEventListener('orientationchange', () => {
       this.refreshOrientationGuard();
-      void this.tryForceLandscape(false);
     });
   }
 
   private async handleStartRace(options: { excludeCurrentTrack?: boolean } = {}): Promise<void> {
     if (!this.raceManager || this.raceStartInFlight) return;
+    if (this.isMobileUnsupported()) {
+      this.refreshOrientationGuard();
+      this.menuView.setStatus('PCブラウザでアクセスしてください');
+      return;
+    }
     // Invalidate any in-flight manual map switch to avoid menu/race state races.
     this.trackChangeRequestSeq += 1;
     this.raceStartInFlight = true;
-    await this.tryForceLandscape(true);
     void this.audio.unlock().catch(() => {
       // Audio unlock failures must not block race start (notably on WebKit paths).
     });
@@ -372,6 +376,7 @@ export class App {
       this.audio.setStandbyLoopActive(false);
       this.input.clearAll();
       this.clearTransientFx();
+      this.cameraTrauma01 = 0;
       this.lastFeedbackKey = '';
 
       this.raceManager.startRace();
@@ -392,6 +397,7 @@ export class App {
     this.menuView.setVisible(true);
     this.input.clearAll();
     this.clearTransientFx();
+    this.cameraTrauma01 = 0;
     this.lastFeedbackKey = '';
     this.lastSnapshot = this.raceManager.getSnapshot();
     this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
@@ -404,9 +410,9 @@ export class App {
     this.refreshOrientationGuard();
     this.enforceMobilePortraitBlock();
 
-    const portraitBlocked = this.isPortraitBlockedOnTouchDevice();
-    const debugInputSnapshot = this.debugEnabled && !portraitBlocked ? this.input.peekSnapshot() : null;
-    const input = portraitBlocked ? { ...ZERO_INPUT } : this.input.snapshot();
+    const mobileBlocked = this.isMobileUnsupported();
+    const debugInputSnapshot = this.debugEnabled && !mobileBlocked ? this.input.peekSnapshot() : null;
+    const input = mobileBlocked ? { ...ZERO_INPUT } : this.input.snapshot();
     if (this.debugEnabled && debugInputSnapshot) {
       this.updateInputDebug(this.input.getDebugState(debugInputSnapshot));
     } else if (this.debugEnabled) {
@@ -437,7 +443,7 @@ export class App {
 
     if (this.lastSnapshot.race.phase === 'finished' && !this.resultView.isVisible()) {
       this.resultView.show(this.lastSnapshot, DEFAULT_GAME_CONFIG.laps);
-      if (this.shouldUseMobileTouchUI()) {
+      if (this.isMobileUnsupported()) {
         this.hudView.setVisible(false);
         this.input.clearAll();
       }
@@ -447,11 +453,14 @@ export class App {
   private rebuildRaceForTrack(track: TrackDefinition): void {
     if (!this.renderer) return;
     this.track = track;
+    this.cameraTrauma01 = 0;
     this.selectedTrackId = this.trackLoader.resolveTrackId(track.id);
     this.menuTrackSelectionId = this.selectedTrackId;
     this.settings.trackId = this.selectedTrackId;
 
     this.sceneBuilder.buildScene(this.renderer.scene, track);
+    this.collectSolAbyssObjects();
+    this.applySolAbyssQuality();
     this.collectShadowFlowGroups();
     this.createOrAttachNextCheckpointBeacon();
 
@@ -499,7 +508,7 @@ export class App {
       }
       console.error(error);
       this.menuView.setStatus('マップの読み込みに失敗しました。');
-      this.lastMenuPortraitBlocked = this.isPortraitOnTouchDevice();
+      this.lastMenuPortraitBlocked = this.isMobileUnsupported();
       this.menuTrackSelectionId = this.selectedTrackId;
       this.menuView.setTrackOptions(this.trackCatalog, this.selectedTrackId);
     } finally {
@@ -518,12 +527,23 @@ export class App {
     const overdriveIntensity = overdriveActive
       ? Math.max(0, Math.min(1, ((this.lastSnapshot?.race.overdriveSpeedMultiplier ?? 1) - 1) / 0.45))
       : 0;
-    this.cameraRig.update(this.raceManager.getPlayerVehicle(), frameDtSec, {
+    const player = this.raceManager.getPlayerVehicle();
+    const speedKmh = Math.abs(player.speedForward) * 3.6;
+    const driftFx01 = Math.max(
+      0,
+      Math.min(1, player.slipRatio * 0.75 + (player.driftBoostMs > 0 ? 0.32 + player.driftBoostStrength * 0.24 : 0)),
+    );
+    this.cameraTrauma01 = Math.max(0, this.cameraTrauma01 - frameDtSec * 1.35);
+    this.cameraRig.update(player, frameDtSec, {
       active: overdriveActive,
       intensity01: overdriveIntensity,
+      shake01: this.cameraTrauma01,
+      speedFx01: Math.max(0, Math.min(1, speedKmh / 170)),
+      driftFx01,
     });
     this.updateNextCheckpointBeacon(frameDtSec);
     this.updateShadowFlows(frameDtSec);
+    this.updateSolAbyssFx(frameDtSec);
     this.updateTransientFx(frameDtSec);
     this.renderer.render();
 
@@ -670,7 +690,7 @@ export class App {
         body.rotation.z = -vehicle.steerVisual * 0.02;
       }
 
-      const fxRefs = mesh.userData as CarDriftFxRefs;
+      const fxRefs = mesh.userData as CarFxRefs;
       const driftFxLeft = fxRefs.driftFxLeft;
       const driftFxRight = fxRefs.driftFxRight;
       const driftFxMaterial = fxRefs.driftFxMaterial;
@@ -687,26 +707,175 @@ export class App {
         driftFxLeft.visible = false;
         driftFxRight.visible = false;
         driftFxMaterial.opacity = 0;
+      } else {
+        const intensityRaw = vehicle.slipRatio * 0.85 + (boosting ? 0.52 + vehicle.driftBoostStrength * 0.48 : 0);
+        const intensity = Math.max(0, Math.min(1.4, intensityRaw));
+        const widthScale = 0.8 + intensity * 0.28;
+        const lengthScale = 0.75 + intensity * 1.05;
+        const pulse = 0.9 + Math.sin(nowMs * 0.012 + vehicle.position.x * 0.08 + vehicle.position.z * 0.08) * 0.1;
+        const opacity = Math.min(0.62, (0.09 + intensity * 0.3) * pulse);
+        const steerOffset = vehicle.steerVisual * 0.14;
+
+        driftFxLeft.visible = true;
+        driftFxRight.visible = true;
+        driftFxLeft.scale.set(widthScale, 1, lengthScale);
+        driftFxRight.scale.set(widthScale, 1, lengthScale);
+        driftFxLeft.rotation.y = -0.08 + steerOffset;
+        driftFxRight.rotation.y = 0.08 + steerOffset;
+        driftFxMaterial.color.setHex(boosting ? 0x9df7ff : 0x4bd9ff);
+        driftFxMaterial.opacity = opacity;
+      }
+
+      const speedTrailLeft = fxRefs.speedTrailLeft;
+      const speedTrailRight = fxRefs.speedTrailRight;
+      const speedTrailMaterial = fxRefs.speedTrailMaterial;
+      const rearGlow = fxRefs.rearGlow;
+      const rearGlowMaterial = fxRefs.rearGlowMaterial;
+      if (!speedTrailLeft || !speedTrailRight || !speedTrailMaterial || !rearGlow || !rearGlowMaterial) {
         continue;
       }
 
-      const intensityRaw = vehicle.slipRatio * 0.85 + (boosting ? 0.52 + vehicle.driftBoostStrength * 0.48 : 0);
-      const intensity = Math.max(0, Math.min(1.4, intensityRaw));
-      const widthScale = 0.8 + intensity * 0.28;
-      const lengthScale = 0.75 + intensity * 1.05;
-      const pulse = 0.9 + Math.sin(nowMs * 0.012 + vehicle.position.x * 0.08 + vehicle.position.z * 0.08) * 0.1;
-      const opacity = Math.min(0.62, (0.09 + intensity * 0.3) * pulse);
-      const steerOffset = vehicle.steerVisual * 0.14;
+      const overdriveActive = vehicle.isPlayer && this.lastSnapshot?.race.overdriveState === 'active';
+      const overdriveIntensity = overdriveActive
+        ? Math.max(0, Math.min(1, ((this.lastSnapshot?.race.overdriveSpeedMultiplier ?? 1) - 1) / 0.45))
+        : 0;
+      const highSpeed01 = Math.max(0, Math.min(1, (speedKmh - 92) / 86));
+      const trailIntensity = Math.max(
+        vehicle.isPlayer ? highSpeed01 : highSpeed01 * 0.45,
+        vehicle.isPlayer && boosting ? 0.34 + vehicle.driftBoostStrength * 0.34 : 0,
+        overdriveActive ? 0.48 + overdriveIntensity * 0.42 : 0,
+      );
 
-      driftFxLeft.visible = true;
-      driftFxRight.visible = true;
-      driftFxLeft.scale.set(widthScale, 1, lengthScale);
-      driftFxRight.scale.set(widthScale, 1, lengthScale);
-      driftFxLeft.rotation.y = -0.08 + steerOffset;
-      driftFxRight.rotation.y = 0.08 + steerOffset;
-      driftFxMaterial.color.setHex(boosting ? 0x9df7ff : 0x4bd9ff);
-      driftFxMaterial.opacity = opacity;
+      if (!raceFxEnabled || trailIntensity <= 0.02) {
+        speedTrailLeft.visible = false;
+        speedTrailRight.visible = false;
+        speedTrailMaterial.opacity = 0;
+        rearGlow.visible = false;
+        rearGlowMaterial.opacity = 0;
+        continue;
+      }
+
+      const trailPulse = 0.86 + Math.sin(nowMs * 0.018 + vehicle.position.x * 0.03) * 0.14;
+      const trailLength = 0.7 + trailIntensity * (overdriveActive ? 2.2 : 1.35);
+      const trailWidth = 0.78 + trailIntensity * 0.38;
+      speedTrailLeft.visible = true;
+      speedTrailRight.visible = true;
+      speedTrailLeft.scale.set(trailWidth, 1, trailLength);
+      speedTrailRight.scale.set(trailWidth, 1, trailLength);
+      speedTrailLeft.rotation.y = -0.04 + vehicle.steerVisual * 0.1;
+      speedTrailRight.rotation.y = 0.04 + vehicle.steerVisual * 0.1;
+      speedTrailMaterial.color.setHex(overdriveActive ? 0x7dedff : boosting ? 0xffd166 : 0x9df7ff);
+      speedTrailMaterial.opacity = Math.min(0.68, (0.08 + trailIntensity * 0.32) * trailPulse);
+
+      const glowIntensity = vehicle.isPlayer
+        ? Math.max(highSpeed01 * 0.34, boosting ? 0.42 : 0, overdriveActive ? 0.52 + overdriveIntensity * 0.3 : 0)
+        : highSpeed01 * 0.18;
+      rearGlow.visible = glowIntensity > 0.03;
+      rearGlow.scale.set(1 + glowIntensity * 0.35, 1 + glowIntensity * 0.7, 1);
+      rearGlowMaterial.color.setHex(overdriveActive ? 0x7dfbff : boosting ? 0xffd166 : 0x7dfbe4);
+      rearGlowMaterial.opacity = Math.min(0.58, glowIntensity * 0.46);
     }
+  }
+
+  private addCameraTrauma(amount01: number): void {
+    this.cameraTrauma01 = Math.max(0, Math.min(1, this.cameraTrauma01 + amount01));
+  }
+
+  private spawnLapBurstFx(x: number, y: number, z: number): void {
+    if (!this.renderer) return;
+    const root = new THREE.Group();
+    root.position.set(x, y + 0.08, z);
+
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.68, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.46, 28), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    root.add(ring);
+
+    const sparkMat = new THREE.MeshBasicMaterial({ color: 0x7dffb3, transparent: true, opacity: 0.72, depthWrite: false });
+    const sparkGeom = new THREE.BoxGeometry(0.16, 0.16, 0.72);
+    const sparks: Array<{ mesh: THREE.Mesh; vel: THREE.Vector3; spin: number }> = [];
+    for (let i = 0; i < 14; i += 1) {
+      const angle = (i / 14) * Math.PI * 2;
+      const mesh = new THREE.Mesh(sparkGeom, sparkMat);
+      mesh.position.set(Math.cos(angle) * 0.55, 0.24 + (i % 3) * 0.08, Math.sin(angle) * 0.55);
+      mesh.rotation.y = angle;
+      root.add(mesh);
+      sparks.push({
+        mesh,
+        vel: new THREE.Vector3(Math.cos(angle) * (3.8 + (i % 4) * 0.28), 1.1 + (i % 5) * 0.14, Math.sin(angle) * (3.8 + (i % 4) * 0.28)),
+        spin: (i % 2 === 0 ? 1 : -1) * (4.2 + i * 0.08),
+      });
+    }
+
+    this.renderer.scene.add(root);
+    this.activeFx.push({
+      root,
+      ageMs: 0,
+      lifeMs: 620,
+      update: (dtSec, ageMs, lifeMs) => {
+        const t = Math.min(1, ageMs / lifeMs);
+        ring.scale.setScalar(1 + t * 3.4);
+        ring.position.y = 0.02 + t * 0.28;
+        ringMat.opacity = Math.max(0, 0.68 - t * 0.86);
+        for (const spark of sparks) {
+          spark.mesh.position.x += spark.vel.x * dtSec;
+          spark.mesh.position.y += spark.vel.y * dtSec;
+          spark.mesh.position.z += spark.vel.z * dtSec;
+          spark.vel.y -= 3.4 * dtSec;
+          spark.mesh.rotation.y += spark.spin * dtSec;
+          spark.mesh.scale.setScalar(1 - t * 0.42);
+        }
+        sparkMat.opacity = Math.max(0, 0.72 - t * 0.82);
+      },
+    });
+  }
+
+  private spawnOverdriveBurstFx(x: number, y: number, z: number, yaw: number): void {
+    if (!this.renderer) return;
+    const root = new THREE.Group();
+    root.position.set(x, y + 0.1, z);
+    root.rotation.y = yaw;
+
+    const shockMat = new THREE.MeshBasicMaterial({ color: 0x7dedff, transparent: true, opacity: 0.72, side: THREE.DoubleSide });
+    const shock = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.38, 34), shockMat);
+    shock.rotation.x = -Math.PI / 2;
+    root.add(shock);
+
+    const streakMat = new THREE.MeshBasicMaterial({
+      color: 0x9df7ff,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const streakGeom = new THREE.BoxGeometry(0.12, 0.1, 4.2);
+    const streaks: THREE.Mesh[] = [];
+    for (const xOffset of [-1.6, -0.85, -0.28, 0.28, 0.85, 1.6] as const) {
+      const streak = new THREE.Mesh(streakGeom, streakMat);
+      streak.position.set(xOffset, 0.52 + Math.abs(xOffset) * 0.08, -2.7 - Math.abs(xOffset) * 0.35);
+      streak.renderOrder = 11;
+      root.add(streak);
+      streaks.push(streak);
+    }
+
+    this.renderer.scene.add(root);
+    this.activeFx.push({
+      root,
+      ageMs: 0,
+      lifeMs: 540,
+      update: (_dtSec, ageMs, lifeMs) => {
+        const t = Math.min(1, ageMs / lifeMs);
+        shock.scale.setScalar(1 + t * 4.7);
+        shockMat.opacity = Math.max(0, 0.72 - t * 0.92);
+        streakMat.opacity = Math.max(0, 0.52 - t * 0.62);
+        for (let i = 0; i < streaks.length; i += 1) {
+          const streak = streaks[i];
+          streak.position.z = -2.7 - t * (7.5 + i * 0.32);
+          streak.scale.z = 1 + t * 1.8;
+          streak.scale.x = Math.max(0.25, 1 - t * 0.5);
+        }
+      },
+    });
   }
 
   private spawnOutOfBoundsFx(x: number, y: number, z: number, reason: OutOfBoundsReason): void {
@@ -886,6 +1055,7 @@ export class App {
   private applyGraphicsQuality(quality: GraphicsQuality): void {
     this.settings.graphicsQuality = quality;
     this.renderer?.applyQuality(quality);
+    this.applySolAbyssQuality();
     this.persistSettings();
     this.eventBus.emit('settings:changed', {
       graphicsQuality: this.settings.graphicsQuality,
@@ -893,6 +1063,48 @@ export class App {
       masterVolume: this.settings.masterVolume,
       invertSteer: this.settings.invertSteer,
     });
+  }
+
+  private collectSolAbyssObjects(): void {
+    this.solAbyssObjects = [];
+    this.solAbyssTimeSec = 0;
+    this.renderer?.scene.traverse((object) => {
+      const material = object instanceof THREE.Mesh || object instanceof THREE.Points ? object.material : null;
+      const materials = Array.isArray(material) ? material : material ? [material] : [];
+      if (
+        object.userData.solAbyssSpin !== undefined ||
+        object.name === 'sol-abyss-high-detail' ||
+        materials.some((entry) => entry.userData.solAbyssAnimated === true)
+      ) {
+        this.solAbyssObjects.push(object);
+      }
+    });
+  }
+
+  private applySolAbyssQuality(): void {
+    const showHighDetail = this.settings.graphicsQuality !== 'low';
+    for (const object of this.solAbyssObjects) {
+      if (object.name === 'sol-abyss-high-detail') {
+        object.visible = showHighDetail;
+      }
+    }
+  }
+
+  private updateSolAbyssFx(dtSec: number): void {
+    if (this.solAbyssObjects.length === 0) return;
+    this.solAbyssTimeSec += dtSec;
+    for (const object of this.solAbyssObjects) {
+      const spin = object.userData.solAbyssSpin as number | undefined;
+      if (spin !== undefined) {
+        object.rotation.y += spin * dtSec;
+      }
+      if (!(object instanceof THREE.Mesh || object instanceof THREE.Points)) continue;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (material.userData.solAbyssAnimated !== true || !(material instanceof THREE.ShaderMaterial)) continue;
+        material.uniforms.uTime.value = this.solAbyssTimeSec;
+      }
+    }
   }
 
   private setInvertSteer(inverted: boolean): void {
@@ -945,10 +1157,7 @@ export class App {
     );
   }
 
-  private getMenuReadyStatus(isPortraitOnTouch: boolean): string {
-    if (isPortraitOnTouch) {
-      return '縦画面でも開始できます（横画面推奨） / 表示中コースで開始します（初回表示はランダム）';
-    }
+  private getMenuReadyStatus(): string {
     return '表示中コースで開始します（初回表示はランダム）';
   }
 
@@ -970,103 +1179,45 @@ export class App {
     }
   }
 
-  private isPortraitOnTouchDevice(): boolean {
-    return this.shouldUseMobileTouchUI() && window.innerHeight > window.innerWidth;
-  }
-
-  private isPortraitBlockedOnTouchDevice(): boolean {
-    return false;
+  private isMobileUnsupported(): boolean {
+    if (!this.shouldUseMobileTouchUI()) return false;
+    const shorterSide = Math.min(window.innerWidth, window.innerHeight);
+    const longerSide = Math.max(window.innerWidth, window.innerHeight);
+    return shorterSide <= 540 && longerSide <= 980;
   }
 
   private refreshOrientationGuard(): void {
-    this.syncInputGuideMode();
-    const isPortraitOnTouch = this.isPortraitOnTouchDevice();
+    const mobileUnsupported = this.isMobileUnsupported();
     const phase = this.raceManager?.getPhase() ?? 'menu';
-    const showOrientationGate = false;
-
-    this.orientationGateEl.classList.toggle('hidden', !showOrientationGate);
-    this.shell.classList.toggle('orientation-blocked', showOrientationGate);
-    this.hudView.setTouchEnabled(this.shouldUseMobileTouchUI());
+    if (this.lastMobileUnsupported !== mobileUnsupported) {
+      this.orientationGateEl.classList.toggle('hidden', !mobileUnsupported);
+      this.shell.classList.toggle('orientation-blocked', mobileUnsupported);
+      this.menuView.setDeviceBlocked(mobileUnsupported);
+      this.lastMobileUnsupported = mobileUnsupported;
+    }
 
     if (phase === 'menu') {
-      this.menuView.setLandscapeAssistVisible(this.shouldUseMobileTouchUI() && isPortraitOnTouch);
-      this.menuView.setPortraitStartBlocked(false);
-      if (this.lastMenuPortraitBlocked !== isPortraitOnTouch) {
-        this.menuView.setStatus(this.getMenuReadyStatus(isPortraitOnTouch));
-        this.lastMenuPortraitBlocked = isPortraitOnTouch;
+      this.menuView.setPortraitStartBlocked(mobileUnsupported);
+      if (this.lastMenuPortraitBlocked !== mobileUnsupported) {
+        this.menuView.setStatus(mobileUnsupported ? 'スマホではプレイできません。PCブラウザでアクセスしてください。' : this.getMenuReadyStatus());
+        this.lastMenuPortraitBlocked = mobileUnsupported;
       }
     } else {
       this.lastMenuPortraitBlocked = null;
     }
 
-    if (!showOrientationGate) {
-      this.orientationGateHint.textContent = '対応端末では横画面ロックを試行します。';
-    }
   }
 
   private enforceMobilePortraitBlock(): void {
-    // Portrait is allowed; keep this hook for future policy toggles.
-  }
-
-  private async handleAssistLandscape(): Promise<void> {
-    const result = await this.tryForceLandscape(true);
-    if (!this.isPortraitOnTouchDevice()) {
-      this.menuView.setStatus(this.getMenuReadyStatus(false));
-      this.lastMenuPortraitBlocked = false;
-      return;
-    }
-    if (result === 'unsupported') {
-      this.menuView.setStatus('このブラウザは自動横画面ロック非対応です');
-      this.lastMenuPortraitBlocked = true;
-      return;
-    }
-    if (result === 'failed') {
-      this.menuView.setStatus('横画面ロックに失敗しました');
-      this.lastMenuPortraitBlocked = true;
-      return;
-    }
-    if (result === 'attempted') {
-      this.menuView.setStatus('横画面ロックを試行しました');
-      this.lastMenuPortraitBlocked = true;
-    }
-  }
-
-  private async tryForceLandscape(fromUserGesture: boolean): Promise<LandscapeAssistResult> {
-    if (!this.shouldUseMobileTouchUI()) return 'not-mobile';
-
-    const orientationApi = (typeof screen !== 'undefined'
-      ? (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
-      : undefined);
-    const lockOrientation = orientationApi?.lock;
-    const supportsOrientationLock =
-      Boolean(orientationApi) &&
-      typeof lockOrientation === 'function';
-
-    if (fromUserGesture && this.isPortraitOnTouchDevice() && document.fullscreenElement == null) {
-      try {
-        await this.shell.requestFullscreen({ navigationUI: 'hide' });
-      } catch {
-        // Fullscreen is optional for orientation lock.
-      }
-    }
-
-    if (!supportsOrientationLock) {
-      this.orientationGateHint.textContent = 'このブラウザは自動横画面ロックに未対応です。端末を横向きにしてください。';
-      this.refreshOrientationGuard();
-      return 'unsupported';
-    }
-
-    try {
-      if (this.isPortraitOnTouchDevice()) {
-        await lockOrientation?.call(orientationApi, 'landscape');
-      }
-      this.orientationGateHint.textContent = '横画面ロックを試行しました。反映されない場合は端末を横向きにしてください。';
-      return 'attempted';
-    } catch {
-      this.orientationGateHint.textContent = '自動横画面ロックに失敗しました。端末を横向きにしてください。';
-      return 'failed';
-    } finally {
-      this.refreshOrientationGuard();
+    if (!this.isMobileUnsupported() || !this.raceManager) return;
+    if (this.raceManager.getPhase() !== 'menu') {
+      this.raceManager.returnToMenu();
+      this.audio.setPaused(true);
+      this.audio.setStandbyLoopActive(true);
+      this.resultView.hide();
+      this.hudView.setVisible(false);
+      this.menuView.setVisible(true);
+      this.input.clearAll();
     }
   }
 
@@ -1083,14 +1234,6 @@ export class App {
     const noHover = matchMedia('(hover: none)').matches;
     const hasTouch = navigator.maxTouchPoints > 0;
     return coarse || (hasTouch && noHover);
-  }
-
-  private syncInputGuideMode(): void {
-    const touchMode = this.shouldUseMobileTouchUI();
-    if (this.inputGuideTouchMode === touchMode) return;
-    this.inputGuideTouchMode = touchMode;
-    this.menuView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
-    this.hudView.setInputGuideMode(touchMode ? 'touch' : 'keyboard');
   }
 
   private updateInputDebug(state: InputDebugState): void {

@@ -75,4 +75,30 @@ describe('CameraRig overdrive FOV', () => {
 
     expect(camera.fov).toBeLessThan(boostedFov);
   });
+
+  it('applies shake offset and settles back when shake input stops', () => {
+    const baselineCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    const shakenCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    const baselineRig = new CameraRig(baselineCamera);
+    const shakenRig = new CameraRig(shakenCamera);
+    const state = createVehicleState();
+    state.speedForward = 34;
+
+    for (let i = 0; i < 12; i += 1) {
+      baselineRig.update(state, 1 / 60, { shake01: 0, speedFx01: 0.7 });
+      shakenRig.update(state, 1 / 60, { shake01: 0, speedFx01: 0.7 });
+    }
+
+    baselineRig.update(state, 1 / 60, { shake01: 0, speedFx01: 0.7 });
+    shakenRig.update(state, 1 / 60, { shake01: 1, speedFx01: 0.7 });
+    const shakenDelta = baselineCamera.position.distanceTo(shakenCamera.position);
+    expect(shakenDelta).toBeGreaterThan(0.03);
+
+    for (let i = 0; i < 90; i += 1) {
+      baselineRig.update(state, 1 / 60, { shake01: 0, speedFx01: 0.7 });
+      shakenRig.update(state, 1 / 60, { shake01: 0, speedFx01: 0.7 });
+    }
+
+    expect(shakenCamera.position.distanceTo(baselineCamera.position)).toBeLessThan(0.02);
+  });
 });

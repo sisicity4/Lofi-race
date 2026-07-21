@@ -1,14 +1,14 @@
 # Web Racing
 
 ブラウザだけで動く、ローポリ3Dアーケードレースゲームです。  
-Three.js + TypeScript + Vite の構成で、デスクトップとモバイル（タッチUI）を同一コードベースで動かします。
+Three.js + TypeScript + Vite の構成で、PCブラウザ向けの3Dレース体験として実装しています。
 
 ## 公開URL
 - Vercel: https://lofi-race.vercel.app
 - GitHub Pages: https://sisicity4.github.io/Lofi-race/
 
 ## 実装済みの主な内容
-- 4コース（Raceway / Desert / Forest / Studio）
+- 5コース（Raceway / Desert / Forest / Studio / SOL ABYSS）
 - 1レースあたり3ラップ固定
 - プレイヤー1台 + CPU3台
 - 初回表示コースはランダム
@@ -16,8 +16,17 @@ Three.js + TypeScript + Vite の構成で、デスクトップとモバイル（
 - リザルト画面から「別のコースをプレイ」で次レースへ
 - ドリフト + コンボ + OVERDRIVE
 - 場外判定（爆発演出）と安全位置リスポーン
-- デスクトップ操作 + モバイル操作（左ジョイスティック + 右アクション）
+- デスクトップ操作（スマホアクセス時はPCブラウザ案内を表示）
 - 待機中ループBGM（`Pixel_Pavement.mp3`）と各種SE
+
+## SOL ABYSS
+
+`SOL ABYSS / ソル・アビス（異常空間）` は、異常空間をテーマにした追加ステージです。
+
+- 高速で駆け抜けられる、急カーブを抑えたフロー型コース
+- シェーダーで脈動する恒星核と重力リング
+- ネオン道路、星粒子、浮遊破片、異常空間を表現した専用景観
+- Low画質では装飾を削減しつつ、道路やゲートの視認性を維持
 
 ## 技術スタック
 - `TypeScript`
@@ -49,9 +58,7 @@ npm run dev
 - 初期設定は「左右操作反転 ON」です（メニューから変更可）。
 
 ### Mobile
-- 左: 仮想ジョイスティック（ステア）
-- 右: `GO` / `BRAKE` / `DRIFT` / `BOOST`
-- 右上: ポーズ
+- スマホ版の開発は一旦停止中です。スマホでアクセスした場合は、PCブラウザで遊ぶよう案内します。
 
 ## 設定保存（localStorage）
 - 選択中コースID
@@ -91,15 +98,11 @@ npm run test:e2e -- tests/e2e/smoke.spec.ts
 ## ブランチ運用
 - `main`: 本番デプロイ用の安定ブランチ
 - `dev`: 開発統合ブランチ
-- `feature/*`: 機能追加
-- `fix/*`: バグ修正
-- `chore/*`: ツール・設定・ドキュメント更新
 
 基本フロー:
-1. `dev` から作業ブランチを切る
+1. 日常作業は `dev` に集約
 2. 実装 + テスト
-3. `dev` に統合
-4. リリース時に `main` へ反映
+3. リリース時に `dev` から `main` へ反映
 
 ## ライセンス
 MIT

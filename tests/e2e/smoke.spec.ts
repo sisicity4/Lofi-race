@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('shows the title menu', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'レース開始' })).toBeVisible();
-  await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+  await expect(page.getByText('PCでプレイしてください')).toBeHidden();
 });
 
 test('can switch map from menu and start race', async ({ page }) => {
@@ -14,16 +14,17 @@ test('can switch map from menu and start race', async ({ page }) => {
   const trackSelect = page.locator('#trackSelect');
   await expect(trackSelect).toBeVisible();
   await expect(trackSelect).toBeEnabled();
-  await expect(trackSelect.locator('option')).toHaveCount(4);
+  await expect(trackSelect.locator('option')).toHaveCount(5);
 
-  await trackSelect.selectOption('studio-gp-long-01');
-  await expect(trackSelect).toHaveValue('studio-gp-long-01');
+  await expect(trackSelect.locator('option[value="sol-abyss-gp-01"]')).toHaveText('SOL ABYSS / ソル・アビス（異常空間）');
+  await trackSelect.selectOption('sol-abyss-gp-01');
+  await expect(trackSelect).toHaveValue('sol-abyss-gp-01');
   const startButton = page.getByRole('button', { name: 'レース開始' });
   await expect(startButton).toBeEnabled();
   await startButton.click();
 
   await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
-  await expect(trackSelect).toHaveValue('studio-gp-long-01');
+  await expect(trackSelect).toHaveValue('sol-abyss-gp-01');
 });
 
 test.describe('mobile', () => {
@@ -32,54 +33,33 @@ test.describe('mobile', () => {
     hasTouch: true,
   });
 
-  test('can start race in landscape touch layout', async ({ page }) => {
+  test('shows PC browser request and blocks race start in landscape', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
-    await expect(page.locator('#trackSelect')).toBeEnabled();
-    const startButton = page.getByRole('button', { name: 'レース開始' });
+    await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
+    await expect(page.getByText('スマホ版の開発は一旦停止中です')).toBeVisible();
+    await expect(page.getByText('この端末ではレース開始を無効化しています。')).toBeVisible();
+
+    const startButton = page.locator('#startButton');
     await expect(startButton).toBeVisible();
-    await expect(startButton).toBeEnabled();
-    await startButton.click();
+    await expect(startButton).toBeDisabled();
+    await expect(startButton).toHaveText('PCでプレイしてください');
 
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
-    await expect(startButton).toBeHidden();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeHidden();
+    await expect(page.locator('#touchSteerZone')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'BOOST' })).toBeHidden();
   });
 
-  test('shows joystick controls and top-right mini speed dial', async ({ page }) => {
+  test('keeps PC request visible when rotating between landscape and portrait', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#trackSelect')).toBeEnabled();
-    await page.getByRole('button', { name: 'レース開始' }).click();
-
-    const joystick = page.locator('#touchSteerZone');
-    const speedDial = page.locator('#speedDial');
-    const overdriveHud = page.locator('#overdriveHud');
-
-    await expect(joystick).toBeVisible();
-    await expect(page.getByRole('button', { name: 'BOOST' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '◀' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '▶' })).toHaveCount(0);
-    await expect(speedDial).toBeVisible();
-    await expect(overdriveHud).toBeVisible();
-
-    const box = await speedDial.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x).toBeGreaterThan(844 * 0.55);
-    expect(box!.y).toBeLessThan(390 * 0.4);
-  });
-
-  test('keeps race playable when rotating to portrait', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#trackSelect')).toBeEnabled();
-    await page.getByRole('button', { name: 'レース開始' }).click();
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
+    await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
-    await expect(page.locator('#pausePanel')).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
+    await expect(page.locator('#startButton')).toBeDisabled();
 
     await page.setViewportSize({ width: 844, height: 390 });
-    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
-    await expect(page.locator('#pausePanel')).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'pause' })).toBeHidden();
   });
 });
 
@@ -89,28 +69,30 @@ test.describe('mobile portrait title flow', () => {
     hasTouch: true,
   });
 
-  test('keeps title usable in portrait and allows start', async ({ page }) => {
+  test('shows PC browser request and blocks title start in portrait', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('横画面でプレイしてください')).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'PCでプレイしてください' })).toBeVisible();
 
     const startButton = page.locator('#startButton');
-    const assistButton = page.locator('#assistLandscapeButton');
 
     await expect(startButton).toBeVisible();
-    await expect(startButton).toBeEnabled();
-    await expect(startButton).toHaveText('レース開始');
-    await expect(assistButton).toBeVisible();
-    await expect(page.locator('#trackSelect')).toBeEnabled();
+    await expect(startButton).toBeDisabled();
+    await expect(startButton).toHaveText('PCでプレイしてください');
+    await expect(page.locator('#assistLandscapeButton')).toHaveCount(0);
+    await expect(page.locator('#trackSelect')).toBeDisabled();
+  });
+});
+
+test.describe('touch-enabled desktop', () => {
+  test.use({
+    viewport: { width: 1280, height: 800 },
+    hasTouch: true,
   });
 
-  test('can start race directly from portrait', async ({ page }) => {
+  test('does not block large touch-capable desktop viewports', async ({ page }) => {
     await page.goto('/');
-
-    const startButton = page.locator('#startButton');
-    await expect(startButton).toBeEnabled();
+    await expect(page.getByText('PCでプレイしてください')).toBeHidden();
+    await expect(page.locator('#startButton')).toBeEnabled();
     await expect(page.locator('#trackSelect')).toBeEnabled();
-    await startButton.click();
-
-    await expect(page.getByRole('button', { name: 'pause' })).toBeVisible({ timeout: 12000 });
   });
 });

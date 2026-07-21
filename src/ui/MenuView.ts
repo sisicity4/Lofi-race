@@ -1,10 +1,9 @@
 import type { GraphicsQuality, SettingsData } from '../types/game';
 import type { TrackCatalogEntry } from '../track/TrackLoader';
-import { buildDesktopControlGuideRows, buildTouchGuideRows } from '../input/bindings';
+import { buildDesktopControlGuideRows } from '../input/bindings';
 
 interface MenuCallbacks {
   onStart: () => void;
-  onAssistLandscape: () => void;
   onTrackChange: (trackId: string) => void;
   onQualityChange: (quality: GraphicsQuality) => void;
   onInvertSteerChange: (inverted: boolean) => void;
@@ -12,12 +11,9 @@ interface MenuCallbacks {
   onVolumeChange: (volume: number) => void;
 }
 
-type InputGuideMode = 'keyboard' | 'touch';
-
 export class MenuView {
   readonly root: HTMLDivElement;
   private readonly startButton: HTMLButtonElement;
-  private readonly assistLandscapeButton: HTMLButtonElement;
   private readonly trackSelect: HTMLSelectElement;
   private readonly qualitySelect: HTMLSelectElement;
   private readonly invertSteerButton: HTMLButtonElement;
@@ -28,7 +24,7 @@ export class MenuView {
   private callbacks: Partial<MenuCallbacks> = {};
   private loading = false;
   private portraitStartBlocked = false;
-  private inputGuideMode: InputGuideMode = 'keyboard';
+  private deviceBlocked = false;
   private steerInverted = true;
 
   constructor(parent: HTMLElement) {
@@ -43,7 +39,6 @@ export class MenuView {
 
         <div class="menu-cta-wrap">
           <button id="startButton" class="btn primary menu-start-btn">レース開始</button>
-          <button id="assistLandscapeButton" class="btn ghost menu-assist-btn" type="button">横画面を試す</button>
           <p id="menuSubtitle" class="small menu-substatus">準備OK</p>
         </div>
 
@@ -81,7 +76,6 @@ export class MenuView {
     parent.append(this.root);
 
     this.startButton = this.root.querySelector('#startButton') as HTMLButtonElement;
-    this.assistLandscapeButton = this.root.querySelector('#assistLandscapeButton') as HTMLButtonElement;
     this.trackSelect = this.root.querySelector('#trackSelect') as HTMLSelectElement;
     this.qualitySelect = this.root.querySelector('#qualitySelect') as HTMLSelectElement;
     this.invertSteerButton = this.root.querySelector('#invertSteerButton') as HTMLButtonElement;
@@ -91,7 +85,6 @@ export class MenuView {
     this.controlPills = this.root.querySelector('#menuControlPills') as HTMLDivElement;
 
     this.startButton.addEventListener('click', () => this.callbacks.onStart?.());
-    this.assistLandscapeButton.addEventListener('click', () => this.callbacks.onAssistLandscape?.());
     this.trackSelect.addEventListener('change', () => this.callbacks.onTrackChange?.(this.trackSelect.value));
     this.qualitySelect.addEventListener('change', () => {
       this.callbacks.onQualityChange?.(this.qualitySelect.value as GraphicsQuality);
@@ -131,7 +124,7 @@ export class MenuView {
     this.trackSelect.value = tracks.some((track) => track.id === selectedTrackId)
       ? selectedTrackId
       : (tracks[0]?.id ?? '');
-    this.trackSelect.disabled = this.loading || tracks.length <= 1;
+    this.syncDisabledState();
   }
 
   setVisible(visible: boolean): void {
@@ -140,28 +133,29 @@ export class MenuView {
 
   setLoading(loading: boolean): void {
     this.loading = loading;
+    this.syncDisabledState();
+  }
+
+  setDeviceBlocked(blocked: boolean): void {
+    if (this.deviceBlocked === blocked) return;
+    this.deviceBlocked = blocked;
+    this.root.classList.toggle('device-blocked', blocked);
+    this.syncDisabledState();
+  }
+
+  private syncDisabledState(): void {
     this.syncStartButtonState();
-    this.trackSelect.disabled = this.loading || this.trackSelect.options.length <= 1;
-    this.qualitySelect.disabled = loading;
-    this.invertSteerButton.disabled = loading;
-    this.muteButton.disabled = loading;
-    this.volumeInput.disabled = loading;
-    this.assistLandscapeButton.disabled = loading;
+    const disabled = this.loading || this.deviceBlocked;
+    this.trackSelect.disabled = disabled || this.trackSelect.options.length <= 1;
+    this.qualitySelect.disabled = disabled;
+    this.invertSteerButton.disabled = disabled;
+    this.muteButton.disabled = disabled;
+    this.volumeInput.disabled = disabled;
   }
 
   setPortraitStartBlocked(blocked: boolean): void {
     this.portraitStartBlocked = blocked;
     this.syncStartButtonState();
-  }
-
-  setLandscapeAssistVisible(visible: boolean): void {
-    this.assistLandscapeButton.classList.toggle('hidden', !visible);
-  }
-
-  setInputGuideMode(mode: InputGuideMode): void {
-    if (this.inputGuideMode === mode) return;
-    this.inputGuideMode = mode;
-    this.renderControlPills();
   }
 
   setError(message: string): void {
@@ -189,14 +183,16 @@ export class MenuView {
   }
 
   private syncStartButtonState(): void {
-    this.startButton.disabled = this.loading || this.portraitStartBlocked;
-    this.startButton.textContent = this.loading ? '読み込み中...' : this.portraitStartBlocked ? '横画面で開始' : 'レース開始';
+    this.startButton.disabled = this.loading || this.portraitStartBlocked || this.deviceBlocked;
+    this.startButton.textContent = this.loading
+      ? '読み込み中...'
+      : this.portraitStartBlocked || this.deviceBlocked
+        ? 'PCでプレイしてください'
+        : 'レース開始';
   }
 
   private renderControlPills(): void {
-    const rows = this.inputGuideMode === 'touch'
-      ? buildTouchGuideRows(['steer', 'throttle', 'brake', 'drift', 'boost'], { steerInverted: this.steerInverted })
-      : buildDesktopControlGuideRows();
+    const rows = buildDesktopControlGuideRows();
 
     this.controlPills.textContent = '';
     for (const row of rows) {

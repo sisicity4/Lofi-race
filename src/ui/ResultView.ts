@@ -11,6 +11,7 @@ export class ResultView {
   private readonly titleEl: HTMLHeadingElement;
   private readonly subtitleEl: HTMLParagraphElement;
   private readonly verdictEl: HTMLParagraphElement;
+  private readonly achievementEl: HTMLParagraphElement;
   private readonly listEl: HTMLUListElement;
   private callbacks: Partial<ResultCallbacks> = {};
   private visible = false;
@@ -23,6 +24,7 @@ export class ResultView {
         <p class="eyebrow">RACE RESULT</p>
         <h2 id="resultTitle" style="margin: 0 0 6px;">FINISH!</h2>
         <p id="resultVerdict" class="result-verdict">-</p>
+        <p id="resultAchievement" class="result-achievement">-</p>
         <p id="resultSubtitle" class="small">-</p>
         <ul id="resultList" class="result-list"></ul>
         <div class="btn-row">
@@ -35,6 +37,7 @@ export class ResultView {
 
     this.titleEl = this.root.querySelector('#resultTitle') as HTMLHeadingElement;
     this.verdictEl = this.root.querySelector('#resultVerdict') as HTMLParagraphElement;
+    this.achievementEl = this.root.querySelector('#resultAchievement') as HTMLParagraphElement;
     this.subtitleEl = this.root.querySelector('#resultSubtitle') as HTMLParagraphElement;
     this.listEl = this.root.querySelector('#resultList') as HTMLUListElement;
     (this.root.querySelector('#retryBtn') as HTMLButtonElement).addEventListener('click', () => this.callbacks.onRetry?.());
@@ -50,6 +53,7 @@ export class ResultView {
     const rank = snapshot.race.leaderboard.find((e) => e.isPlayer)?.rank;
     this.titleEl.textContent = rank ? `FINISH! ${rank}位` : 'FINISH!';
     this.verdictEl.textContent = this.getVerdict(rank ?? 4, player);
+    this.achievementEl.textContent = this.getAchievement(snapshot, rank ?? 4, player);
     this.root.dataset.rank = String(rank ?? 4);
     this.subtitleEl.textContent = `合計 ${formatMs(snapshot.race.elapsedMs)} / ベストラップ ${snapshot.race.bestLapMs ? formatMs(snapshot.race.bestLapMs) : '--'} / MAX COMBO x${snapshot.race.maxCombo}`;
 
@@ -114,5 +118,17 @@ export class ResultView {
     if (rank === 2) return 'あと一歩。ブレーキングを詰めれば勝てる。';
     if (rank === 3) return '表彰台フィニッシュ。次は立ち上がり速度を意識。';
     return '完走。まずはコースに慣れた。次は攻めよう。';
+  }
+
+  private getAchievement(snapshot: RaceSnapshot, rank: number, player?: RaceSnapshot['vehicles'][number]): string {
+    if (rank === 1) return 'VISUAL ACHIEVEMENT / GOLD FINISH';
+    if (snapshot.race.maxCombo >= 4) return `VISUAL ACHIEVEMENT / MAX COMBO x${snapshot.race.maxCombo}`;
+    if (player?.lapTimesMs.length) {
+      const bestLap = Math.min(...player.lapTimesMs);
+      if (snapshot.race.bestLapMs !== null && bestLap <= snapshot.race.bestLapMs) {
+        return 'VISUAL ACHIEVEMENT / BEST LAP';
+      }
+    }
+    return 'VISUAL ACHIEVEMENT / RACE COMPLETE';
   }
 }

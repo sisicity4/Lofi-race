@@ -43,7 +43,7 @@ export interface SurfaceZone {
   polygon: [number, number][];
 }
 
-export type TrackTheme = 'coastal' | 'raceway' | 'desert' | 'forest' | 'studio';
+export type TrackTheme = 'coastal' | 'raceway' | 'desert' | 'forest' | 'studio' | 'sol-abyss';
 
 export interface TrackDefinition {
   id: string;
